@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "900347995433",
+    "project_id": "mechtrack-f673d",
+    "storage_bucket": "mechtrack-f673d.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:900347995433:android:9439a7089222ceea050338",
+        "android_client_info": {
+          "package_name": "com.example.mech_track"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBw49DWNu_C9XwdNvH-vyMbTJgXTFz9kVY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
