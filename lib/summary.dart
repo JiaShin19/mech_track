@@ -130,8 +130,6 @@ class _SummaryScreenState extends State<SummaryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final stats = currentData;
-
     return Scaffold(
       body: SafeArea(
         child: Column(
