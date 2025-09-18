@@ -1,5 +1,18 @@
+import 'dart:async';
+
+import 'package:firebase_ui_auth/firebase_ui_auth.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:mech_track/splash_screen.dart';
+import 'package:flutter_native_splash/flutter_native_splash.dart';
+
+import 'package:mech_track/login_page.dart';
+import 'package:mech_track/change_password_page.dart';
+import 'package:mech_track/settings_page.dart';
+import 'package:mech_track/notes_list_page.dart';
+
 import 'firebase_options.dart';
 import 'job_model.dart';
 import 'job_detail.dart';
@@ -7,45 +20,128 @@ import 'service_history.dart';
 import 'summary.dart';
 import 'data_service.dart';
 
-// void main() {
-//  runApp(const MyApp());
-// }
+Future<void> main() async {
+  final widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
+  FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
 
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+  // WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
   runApp(const MyApp());
 }
 
-// class MyApp extends StatelessWidget {
-//   const MyApp({super.key});
-//   // This widget is the root of your application.
-//   @override
-//   Widget build(BuildContext context) {
-//     return MaterialApp(
-//       title: 'Flutter Demo',
-//       theme: ThemeData(
-//         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-//       ),
-//       home: const MyHomePage(title: 'Flutter Demo Home Page'),
-//     );
-//   }
-// }
-
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'MechTrack',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo),
+        // colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo),
+        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF2B384C)),
         useMaterial3: true,
+        pageTransitionsTheme: const PageTransitionsTheme(builders: {
+          TargetPlatform.android: FadeUpwardsPageTransitionsBuilder(),
+          TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.macOS: CupertinoPageTransitionsBuilder(),
+        }),
       ),
-      home: const MainNavigationScreen(),
+      home: const AuthGate(),
+      routes: {
+        LoginPage.route: (_) => const LoginPage(),
+        NotesListPage.route: (_) => const NotesListPage(),
+        ChangePasswordPage.route: (_) => const ChangePasswordPage(),
+        SettingsPage.route: (_) => const SettingsPage(),            // <— add this
+      },
+    );
+  }
+}
+
+class AuthGate extends StatefulWidget {
+  const AuthGate({super.key});
+
+  @override
+  State<AuthGate> createState() => _AuthGateState();
+}
+
+class _AuthGateState extends State<AuthGate> {
+  bool _splashDone = false;
+
+  // @override
+  // void initState() {
+  //   super.initState();
+  //   // Guarantee the splash is visible briefly
+  //   Future.delayed(const Duration(milliseconds: 3000), () {
+  //     if (mounted) setState(() => _splashDone = true);
+  //   });
+  // }
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.authStateChanges(),
+      builder: (context, snap) {
+        // late final Widget child;
+        // Show splash until the minimum delay is done OR while the stream is still connecting
+        // if (!_splashDone || snap.connectionState == ConnectionState.waiting) {
+        //   child = const SplashScreen(key: ValueKey('splash'));
+        //   // return const SplashScreen();
+        // } else if (snap.hasData) {
+        //   child = const MainNavigationScreen(key: ValueKey('main'));
+        //   // return const MainNavigationScreen();
+        // } else {
+        //   child = const LoginPage(key: ValueKey('login'));
+        //   // return const LoginPage();
+        // }
+
+        // When we have something meaningful to show (not waiting), remove native splash exactly once
+        final ready = snap.connectionState != ConnectionState.waiting;
+        if (ready && !_splashDone) {
+          _splashDone = true;
+          // Remove AFTER first frame to ensure smooth handoff
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            // FlutterNativeSplash.remove();
+            FlutterNativeSplash.remove();
+          });
+        }
+
+        if (!ready) {
+          // While native splash is up, we keep returning an empty widget (no Flutter splash).
+          // If for any reason native splash already removed (e.g., hot restart), show a tiny loader.
+          return const SizedBox.shrink();
+        }
+
+        if (snap.hasData) {
+          return const MainNavigationScreen();
+        } else {
+          return const LoginPage();
+        }
+
+        // // Smooth Shared-Axis transition between Splash/Login/Main
+        // return PageTransitionSwitcher(
+        //   transitionBuilder: (Widget child, Animation<double> primary, Animation<double> secondary) {
+        //     return SharedAxisTransition(
+        //       animation: primary,
+        //       secondaryAnimation: secondary,
+        //       transitionType: SharedAxisTransitionType.scaled, // nice for auth→app
+        //       child: child,
+        //     );
+        //   },
+        //   duration: const Duration(milliseconds: 450),
+        //   reverse: !snap.hasData, // reverse when signing out
+        //   child: child,
+        // );
+
+        // return AnimatedSwitcher(
+        //   duration: const Duration(milliseconds: 280),
+        //   switchInCurve: Curves.easeOutCubic,
+        //   switchOutCurve: Curves.easeInCubic,
+        //   child: child,
+        // );
+      },
     );
   }
 }
@@ -57,107 +153,77 @@ class MainNavigationScreen extends StatefulWidget {
   State<MainNavigationScreen> createState() => _MainNavigationScreenState();
 }
 
-class _MainNavigationScreenState extends State<MainNavigationScreen> {
+class _MainNavigationScreenState extends State<MainNavigationScreen>
+    with TickerProviderStateMixin {
   int _currentIndex = 0;
+  int _prevIndex = 0;
 
-  late final List<Widget> _screens;
+  late final AnimationController _fadeCtrl = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 250),
+  )..value = 1.0; // first tab shows immediately
+
+  // Keep your tab widgets here. Using const constructors where possible is fine.
+  final List<Widget> _screens = const [
+    DashboardScreen(),
+    NotesListPage(),
+    ServiceHistoryScreen(),
+    SummaryScreen(),
+  ];
+
+  void _onTap(int index) {
+    if (index == _currentIndex) return;         // no-op if same tab
+    setState(() {
+      _prevIndex = _currentIndex;               // remember previous
+      _currentIndex = index;
+      _fadeCtrl
+        ..value = 0.0                           // start from 0
+        ..forward();                            // fade new tab in
+    });
+  }
 
   @override
-  void initState() {
-    super.initState();
-    _screens = [
-      const DashboardScreen(),
-      const NotesScreen(),
-      const ServiceHistoryScreen(),
-      const SummaryScreen(),
-    ];
+  void dispose() {
+    _fadeCtrl.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: _screens[_currentIndex],
+      /* FOR sliding-through-tabs navigation transition */
+      // body: PageView(
+      //   controller: _controller,
+      //   physics: const BouncingScrollPhysics(),
+      //   onPageChanged: (i) => setState(() => _currentIndex = i),
+      //   children: _screens,
+      // ),
+      // Both stacks keep tabs mounted (no reload). Only the top one is animated.
+      body: Stack(
+        children: [
+          // Underlay: previous tab (fully visible, no animation)
+          IndexedStack(index: _prevIndex, children: _screens),
+
+          // Overlay: current tab (fades in)
+          FadeTransition(
+            opacity: _fadeCtrl,
+            child: IndexedStack(index: _currentIndex, children: _screens),
+          ),
+        ],
+      ),
       bottomNavigationBar: BottomNavigationBar(
         type: BottomNavigationBarType.fixed,
         currentIndex: _currentIndex,
-        onTap: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
-        },
+        onTap: _onTap,
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home"),
           BottomNavigationBarItem(icon: Icon(Icons.note), label: "Notes"),
           BottomNavigationBarItem(icon: Icon(Icons.history), label: "History"),
           BottomNavigationBarItem(icon: Icon(Icons.summarize), label: "Summary"),
         ],
-        selectedItemColor: Colors.indigo,
+        // selectedItemColor: Colors.indigo,
+        selectedItemColor: const Color(0xFF2B384C),
         unselectedItemColor: Colors.grey,
-      ),
-    );
-  }
-}
-
-// Placeholder Notes Screen
-class NotesScreen extends StatelessWidget {
-  const NotesScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        child: Column(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.grey[50],
-                border: Border(
-                  bottom: BorderSide(color: Colors.grey[300]!),
-                ),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.note, color: Colors.indigo, size: 24),
-                  const SizedBox(width: 12),
-                  const Text(
-                    "Notes",
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const Expanded(
-              child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.note_add, size: 64, color: Colors.grey),
-                    SizedBox(height: 16),
-                    Text(
-                      "Notes feature coming soon!",
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: Colors.grey,
-                      ),
-                    ),
-                    SizedBox(height: 8),
-                    Text(
-                      "Create and manage your work notes here",
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -174,7 +240,8 @@ class DashboardScreen extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
         child: Column(
           children: [
-            Icon(icon, color: Colors.indigo),
+            // Icon(icon, color: Colors.indigo),
+            Icon(icon, color: Color(0xFF2B384C)),
             const SizedBox(height: 5),
             Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
             Text(count),
@@ -190,7 +257,8 @@ class DashboardScreen extends StatelessWidget {
       margin: const EdgeInsets.symmetric(vertical: 8),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       child: ListTile(
-        leading: const Icon(Icons.build, color: Colors.indigo),
+        // leading: const Icon(Icons.build, color: Colors.indigo),
+        leading: const Icon(Icons.build, color: Color(0xFF2B384C),),
         title: Text(job.id, style: const TextStyle(fontWeight: FontWeight.bold)),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -215,28 +283,48 @@ class DashboardScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final jobs = DataService.currentJobs;
-    int assignedCount = jobs.where((job) => job.status == "Assigned").length;
-    int inProgressCount = jobs.where((job) => job.status == "In Progress").length;
-    int completedCount = jobs.where((job) => job.status == "Completed").length;
+    // int assignedCount = jobs.where((job) => job.status == "Assigned").length;
+    // int inProgressCount = jobs.where((job) => job.status == "In Progress").length;
+    // int completedCount = jobs.where((job) => job.status == "Completed").length;
+
+    final assignedCount = jobs.where((j) => j.status == "Assigned").length;
+    final inProgressCount = jobs.where((j) => j.status == "In Progress").length;
+    final completedCount = jobs.where((j) => j.status == "Completed").length;
+
+    final user = FirebaseAuth.instance.currentUser;
 
     return Scaffold(
       appBar: AppBar(
         title: const Text("MECHTRACK"),
-        backgroundColor: Colors.indigo,
+        // backgroundColor: Colors.indigo,
+        backgroundColor: Color(0xFF2B384C),
+        foregroundColor: const Color(0xFFF0F4F3),
+        // actions: [
+        //   IconButton(
+        //     tooltip: 'Sign Out',
+        //     icon: const Icon(Icons.logout),
+        //     onPressed: () async {
+        //       await FirebaseAuth.instance.signOut();
+        //     },
+        //   ),
+        // ],
       ),
       drawer: Drawer(
         child: ListView(
           padding: EdgeInsets.zero,
           children: [
-            const UserAccountsDrawerHeader(
-              accountName: Text("Muhammad Azman"),
-              accountEmail: null,
+            UserAccountsDrawerHeader(
+              // accountName: Text("Muhammad Azman"),
+              // accountEmail: null,
+              accountName: Text(user?.displayName ?? "User"),
+              accountEmail: Text(user?.email ?? ""),
               currentAccountPicture: CircleAvatar(
                 backgroundImage: NetworkImage(
                   "https://via.placeholder.com/150",
                 ),
               ),
-              decoration: BoxDecoration(color: Colors.indigo),
+              // decoration: BoxDecoration(color: Colors.indigo),
+              decoration: BoxDecoration(color: Color(0xFF2B384C)),
             ),
             ListTile(
               leading: const Icon(Icons.person),
@@ -246,12 +334,17 @@ class DashboardScreen extends StatelessWidget {
             ListTile(
               leading: const Icon(Icons.settings),
               title: const Text("Settings"),
-              onTap: () {},
+              onTap: () {
+                Navigator.pop(context); // close drawer
+                Navigator.of(context).pushNamed(SettingsPage.route);
+              },
             ),
             ListTile(
               leading: const Icon(Icons.logout),
               title: const Text("Log Out"),
-              onTap: () {},
+              onTap: () async {
+                FirebaseAuth.instance.signOut();
+              },
             ),
           ],
         ),
@@ -355,7 +448,8 @@ class _MyHomePageState extends State<MyHomePage> {
       title: 'MechTrack',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo),
+        // colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo),
+        colorScheme: ColorScheme.fromSeed(seedColor: Color(0xFF2B384C)),
         useMaterial3: true,
       ),
       home: const DashboardScreen(),
