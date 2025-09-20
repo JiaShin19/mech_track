@@ -1,5 +1,6 @@
 //data_service.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'job_model.dart';
 
 class Mechanic {
@@ -30,15 +31,14 @@ class DataService {
   static Future<Mechanic?> getCurrentMechanic() async {
     if (_currentMechanic != null) return _currentMechanic;
 
-    final snapshot = await _db
-        .collection('users')
-        .where('name', isEqualTo: "Muhammad Azman")
-        .limit(1)
-        .get();
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return null;
 
-    if (snapshot.docs.isEmpty) return null;
+    final doc = await _db.collection('users').doc(user.uid).get();
+    if (!doc.exists) return null;
 
-    final data = snapshot.docs.first.data();
+    final data = doc.data()!;
+
     _currentMechanic = Mechanic(
       id: data['id'] ?? '',
       name: data['name'] ?? '',
@@ -163,6 +163,11 @@ class DataService {
   // Method to load jobs into cache
   static Future<void> loadJobs() async {
     _jobs = await getAllJobs();
+  }
+
+  static void clearSession() {
+    _currentMechanic = null;
+    _jobs = [];
   }
 }
 

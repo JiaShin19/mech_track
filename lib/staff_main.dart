@@ -244,54 +244,81 @@ class DashboardScreen extends StatelessWidget {
           );
         },
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(12.0),
-        child: ListView(
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _statusCard("Assigned", assignedCount.toString(), Icons.assignment),
-                _statusCard("In Progress", inProgressCount.toString(), Icons.sync),
-                _statusCard("Completed", completedCount.toString(), Icons.check_circle),
-              ],
-            ),
-            const SizedBox(height: 20),
-            const Text(
-              "Task Tracker:",
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 10),
-            ...jobs.map((job) => _jobCard(context, job)).toList(),
-            if (jobs.isEmpty)
-              Container(
-                padding: const EdgeInsets.all(32),
-                child: Center(
-                  child: Column(
+        body: FutureBuilder<List<Job>>(
+          future: DataService.getCurrentMechanicJobs(),
+            builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (snapshot.hasError) {
+              return Center(child: Text("Error: ${snapshot.error}"));
+            }
+
+            final jobs = snapshot.data ?? [];
+
+            final assignedCount = jobs
+                .where((j) => j.status == "Assigned")
+                .length;
+            final inProgressCount = jobs
+                .where((j) => j.status == "In Progress")
+                .length;
+            final completedCount = jobs
+                .where((j) => j.status == "Completed")
+                .length;
+            return Padding(
+              padding: const EdgeInsets.all(12.0),
+              child: ListView(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
-                      Icon(Icons.work_outline, size: 64, color: Colors.grey[400]),
-                      const SizedBox(height: 16),
-                      Text(
-                        "No active jobs",
-                        style: TextStyle(
-                          fontSize: 18,
-                          color: Colors.grey[600],
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        "Check back later for new assignments",
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey[500],
-                        ),
-                      ),
+                      _statusCard("Assigned", assignedCount.toString(),
+                          Icons.assignment),
+                      _statusCard("In Progress", inProgressCount.toString(),
+                          Icons.sync),
+                      _statusCard("Completed", completedCount.toString(),
+                          Icons.check_circle),
                     ],
                   ),
-                ),
+                  const SizedBox(height: 20),
+                  const Text(
+                    "Task Tracker:",
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 10),
+                  ...jobs.map((job) => _jobCard(context, job)).toList(),
+                  if (jobs.isEmpty)
+                    Container(
+                      padding: const EdgeInsets.all(32),
+                      child: Center(
+                        child: Column(
+                          children: [
+                            Icon(Icons.work_outline, size: 64, color: Colors
+                                .grey[400]),
+                            const SizedBox(height: 16),
+                            Text(
+                              "No active jobs",
+                              style: TextStyle(
+                                fontSize: 18,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              "Check back later for new assignments",
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.grey[500],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
               ),
-          ],
-        ),
+            );
+          }
       ),
     );
   }
@@ -433,6 +460,8 @@ Future<bool> _confirmSignOut(BuildContext context) async {
 
   if (ok) {
     await FirebaseAuth.instance.signOut();
+    DataService.clearSession();
+
   }
 
   return ok;
