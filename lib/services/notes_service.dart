@@ -307,12 +307,12 @@ class NotesService {
 
 import 'dart:io';
 import 'dart:convert';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:image/image.dart' as img;
+
 import 'note_model.dart';
-import 'package:firebase_core/firebase_core.dart';
 
 class NotesService {
   final _db = FirebaseFirestore.instance;
@@ -324,14 +324,48 @@ class NotesService {
     return u.uid;
   }
 
-  CollectionReference<Map<String, dynamic>> get _notes => _db.collection('notes');
+  CollectionReference<Map<String, dynamic>> get _notes =>
+      _db.collection('notes');
 
+  /// All notes for current user
   Stream<List<NoteModel>> streamNotes({bool newestFirst = true}) {
     return _notes
         .where('userId', isEqualTo: _uid)
         .orderBy('createdAt', descending: newestFirst)
         .snapshots()
         .map((q) => q.docs.map(NoteModel.fromDoc).toList());
+  }
+
+  /// Filtered notes (jobId / date range / hasImages), only for current user
+  Stream<List<NoteModel>> streamNotesFiltered({
+    // required bool newestFirst,
+    bool newestFirst = true,
+    String? jobId,
+    DateTime? start,
+    DateTime? end,
+    bool? hasImages, // true = only with images, false = only without images
+  }) {
+    Query<Map<String, dynamic>> q =
+    _notes.where('userId', isEqualTo: _uid);
+
+    if (jobId != null && jobId.trim().isNotEmpty) {
+      q = q.where('jobId', isEqualTo: jobId.trim());
+    }
+    if (start != null) {
+      q = q.where('createdAt', isGreaterThanOrEqualTo: Timestamp.fromDate(start));
+    }
+    if (end != null) {
+      // Firestore best practice: use < end + 1 microsecond (or add a day if you pick dates)
+      q = q.where('createdAt', isLessThanOrEqualTo: Timestamp.fromDate(end));
+    }
+    if (hasImages != null) {
+      // Use a boolean field we’ll store on write (see upsert below).
+      q = q.where('hasImages', isEqualTo: hasImages);
+    }
+
+    q = q.orderBy('createdAt', descending: newestFirst);
+
+    return q.snapshots().map((s) => s.docs.map(NoteModel.fromDoc).toList());
   }
 
   Stream<NoteModel?> watchNote(String id) {
@@ -355,61 +389,66 @@ class NotesService {
   //   await ref.set(data, SetOptions(merge: true));
   // }
 
+  // Future<void> upsert(NoteModel m) async {
+  //     final uid = FirebaseAuth.instance.currentUser?.uid;
+  //     if (uid == null) throw StateError('Not authenticated');
+  //
+  //     if (m.jobId.trim().isEmpty) {
+  //       throw StateError('Job is required');
+  //     }
+  //
+  //     final ref = FirebaseFirestore.instance.collection('notes').doc(m.id);
+  //
+  //     // build data
+  //     final data = m.toMap()
+  //       ..['userId'] = uid;
+  //
+  //     // only set createdAt when creating (m.createdAt is null for new notes)
+  //     if (m.createdAt == null) {
+  //       data['createdAt'] = FieldValue.serverTimestamp();
+  //     }
+  //
+  //     // no pre-read; just merge
+  //     await ref.set(data, SetOptions(merge: true));
+  // }
+
   Future<void> upsert(NoteModel m) async {
-    // final uid = FirebaseAuth.instance.currentUser?.uid;
-    // debugPrint('DBG uid=$uid  project=${Firebase.app().options.projectId}');
-    // await FirebaseFirestore.instance.doc('notes/__rule_test').set({
-    //   'id': '__rule_test222',
-    //   'userId': uid,
-    //   'text': 'hihi',
-    // });
-    //
-    // final uid = FirebaseAuth.instance.currentUser?.uid;
-    // if (uid == null) throw StateError('Not authenticated');
-    //
-    // final ref = FirebaseFirestore.instance.collection('notes').doc(m.id);
-    // final snap = await ref.get();
-    //
-    // final data = m.toMap()
-    //   ..['userId'] = uid; // <— critical
-    //
-    // if (!snap.exists) data['createdAt'] = FieldValue.serverTimestamp();
-    // await ref.set(data, SetOptions(merge: true));
+    final ref = _notes.doc(m.id.isEmpty ? _notes.doc().id : m.id);
+    final snap = await ref.get();
 
-      final uid = FirebaseAuth.instance.currentUser?.uid;
-      if (uid == null) throw StateError('Not authenticated');
+    // Build the write payload from your model
+    final data = m.toMap()
+      ..['id'] = ref.id
+      ..['userId'] = _uid;
 
-      if (m.jobId.trim().isEmpty) {
-        throw StateError('Job is required');
-      }
+    // Compute hasImages from the map (supports either 'images' or 'imagesB64')
+    final hasImages =
+        ((data['images'] as List?)?.isNotEmpty ?? false) ||
+            ((data['imagesB64'] as List?)?.isNotEmpty ?? false);
+    data['hasImages'] = hasImages;
 
-      final ref = FirebaseFirestore.instance.collection('notes').doc(m.id);
-
-      // build data
-      final data = m.toMap()
-        ..['userId'] = uid;
-
-      // only set createdAt when creating (m.createdAt is null for new notes)
-      if (m.createdAt == null) {
-        data['createdAt'] = FieldValue.serverTimestamp();
-      }
-
-      // no pre-read; just merge
+    if (!snap.exists) {
+      data['createdAt'] = FieldValue.serverTimestamp(); // set once on create
+      await ref.set(data);
+    } else {
+      // Don't overwrite createdAt on update
+      data.remove('createdAt');
       await ref.set(data, SetOptions(merge: true));
+    }
   }
 
   Future<void> delete(String id) async => _notes.doc(id).delete();
 
   /// Compress to ~900px wide JPEG, return data URI string.
-  Future<String> fileToDataUri(File file, {int maxWidth = 900, int quality = 75}) async {
+  Future<String> fileToDataUri(File file,
+      {int maxWidth = 900, int quality = 75}) async {
     final bytes = await file.readAsBytes();
     final decoded = img.decodeImage(bytes);
     if (decoded == null) {
       throw StateError('Unsupported image: ${file.path}');
     }
-    final resized = decoded.width > maxWidth
-        ? img.copyResize(decoded, width: maxWidth)
-        : decoded;
+    final resized =
+        decoded.width > maxWidth ? img.copyResize(decoded, width: maxWidth) : decoded;
     final jpg = img.encodeJpg(resized, quality: quality);
     final b64 = base64Encode(jpg);
     return 'data:image/jpeg;base64,$b64';
