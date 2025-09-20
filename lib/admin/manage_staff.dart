@@ -52,126 +52,214 @@ class _ManageStaffPageState extends State<ManageStaffPage> {
     final imageController = TextEditingController(text: staff?["image"] ?? "");
     final passwordController = TextEditingController(); // only for new staff
 
+    // Validation error messages
+    final Map<String, String?> fieldErrors = {
+      'name': null,
+      'email': null,
+      'password': null,
+      'phone': null,
+      'address': null,
+      'image': null,
+      'form': null,
+    };
+
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(staff == null ? "Add Staff" : "Edit Staff"),
-        content: SingleChildScrollView(
-          child: Column(
-            children: [
-              TextField(
-                  controller: nameController,
-                  decoration: const InputDecoration(labelText: "Name")),
-              TextField(
-                  controller: emailController,
-                  decoration: const InputDecoration(labelText: "Email")),
-              if (staff == null)
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text(staff == null ? "Add Staff" : "Edit Staff"),
+          content: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
                 TextField(
-                  controller: passwordController,
-                  decoration: const InputDecoration(
-                      labelText: "Password (for login)"),
-                  obscureText: true,
+                  controller: nameController,
+                  decoration: InputDecoration(
+                    labelText: "Name",
+                    errorText: fieldErrors['name'],
+                  ),
                 ),
-              TextField(
+                TextField(
+                  controller: emailController,
+                  decoration: InputDecoration(
+                    labelText: "Email",
+                    errorText: fieldErrors['email'],
+                  ),
+                ),
+                if (staff == null)
+                  TextField(
+                    controller: passwordController,
+                    decoration: InputDecoration(
+                      labelText: "Password (for login)",
+                      errorText: fieldErrors['password'],
+                    ),
+                    obscureText: true,
+                  ),
+                TextField(
                   controller: phoneController,
-                  decoration: const InputDecoration(labelText: "Phone")),
-              TextField(
+                  decoration: InputDecoration(
+                    labelText: "Phone",
+                    errorText: fieldErrors['phone'],
+                  ),
+                ),
+                TextField(
                   controller: addressController,
-                  decoration: const InputDecoration(labelText: "Address")),
-              TextField(
-                controller: TextEditingController(text: "staff"),
-                decoration: const InputDecoration(labelText: "Role"),
-                enabled: false,
-              ),
-              TextField(
+                  decoration: InputDecoration(
+                    labelText: "Address",
+                    errorText: fieldErrors['address'],
+                  ),
+                ),
+                TextField(
+                  controller: TextEditingController(text: "staff"),
+                  decoration: const InputDecoration(labelText: "Role"),
+                  enabled: false,
+                ),
+                TextField(
                   controller: imageController,
-                  decoration: const InputDecoration(
-                      labelText: "Image URL (optional)")),
-            ],
+                  decoration: InputDecoration(
+                    labelText: "Image URL (optional)",
+                    errorText: fieldErrors['image'],
+                  ),
+                ),
+                if (fieldErrors['form'] != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8.0),
+                    child: Text(
+                      fieldErrors['form']!,
+                      style: const TextStyle(color: Colors.red),
+                    ),
+                  ),
+              ],
+            ),
           ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text("Cancel")),
+            ElevatedButton(
+              onPressed: () async {
+                // Clear previous errors
+                fieldErrors.updateAll((key, value) => null);
+
+                final name = nameController.text.trim();
+                final email = emailController.text.trim();
+                final phone = phoneController.text.trim();
+                final address = addressController.text.trim();
+                final image = imageController.text.trim().isNotEmpty
+                    ? imageController.text.trim()
+                    : null;
+                final password = passwordController.text.trim();
+
+                bool hasError = false;
+
+                // Validate each field
+                if (name.isEmpty) {
+                  fieldErrors['name'] = "Name is required.";
+                  hasError = true;
+                }
+                if (email.isEmpty) {
+                  fieldErrors['email'] = "Email is required.";
+                  hasError = true;
+                }
+                if (staff == null && password.isEmpty) {
+                  fieldErrors['password'] = "Password is required.";
+                  hasError = true;
+                }
+
+                setDialogState(() {});
+
+                if (hasError) return;
+
+                if (staff == null) {
+                  // Add staff
+                  try {
+                    UserCredential userCred = await FirebaseAuth.instance
+                        .createUserWithEmailAndPassword(
+                      email: email,
+                      password: password,
+                    );
+                    String uid = userCred.user!.uid;
+
+                    // Step 2: sign out staff
+                    await FirebaseAuth.instance.signOut();
+
+                    // Step 3: re-login as admin
+                    if (adminEmail != null && adminPassword != null) {
+                      await FirebaseAuth.instance.signInWithEmailAndPassword(
+                        email: adminEmail!,
+                        password: adminPassword!,
+                      );
+                    }
+
+                    // Step 4: save staff info in Firestore
+                    final newStaff = {
+                      "id": uid,
+                      "name": name,
+                      "email": email,
+                      "phone": phone,
+                      "address": address,
+                      "role": "staff",
+                      "image": image,
+                    };
+                    await staffRef.doc(uid).set(newStaff);
+
+                    if (mounted) Navigator.pop(context);
+
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text("Staff added successfully!")),
+                    );
+                  } catch (e) {
+                    setDialogState(() {
+                      fieldErrors['form'] = "Error: ${e.toString()}";
+                    });
+                  }
+                } else {
+                  // Edit staff
+                  try {
+                    final updatedStaff = {
+                      "name": name,
+                      "email": email,
+                      "phone": phone,
+                      "address": address,
+                      "role": "staff",
+                      "image": image,
+                    };
+                    await staffRef.doc(docId!).update(updatedStaff);
+                    if (mounted) Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text("Staff updated successfully!")),
+                    );
+                  } catch (e) {
+                    setDialogState(() {
+                      fieldErrors['form'] = "Error: ${e.toString()}";
+                    });
+                  }
+                }
+              },
+              child: const Text("Save"),
+            ),
+          ],
         ),
+      ),
+    );
+  }
+
+  Future<bool?> confirmDeleteStaff() {
+    return showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Delete Staff"),
+        content: const Text(
+            "Are you sure you want to delete this staff member? This action cannot be undone."),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text("Cancel")),
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text("Cancel"),
+          ),
           ElevatedButton(
-            onPressed: () async {
-              final name = nameController.text.trim();
-              final email = emailController.text.trim();
-              final phone = phoneController.text.trim();
-              final address = addressController.text.trim();
-              final image = imageController.text.trim().isNotEmpty
-                  ? imageController.text.trim()
-                  : null;
-
-              if (staff == null) {
-                // Add staff
-                final password = passwordController.text.trim();
-                if (email.isEmpty || password.isEmpty || name.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                        content:
-                        Text("Name, email, and password are required.")),
-                  );
-                  return;
-                }
-                try {
-                  // Step 1: create staff
-                  UserCredential userCred = await FirebaseAuth.instance
-                      .createUserWithEmailAndPassword(
-                    email: email,
-                    password: password,
-                  );
-                  String uid = userCred.user!.uid;
-
-                  // Step 2: sign out staff
-                  await FirebaseAuth.instance.signOut();
-
-                  // Step 3: re-login as admin
-                  if (adminEmail != null && adminPassword != null) {
-                    await FirebaseAuth.instance.signInWithEmailAndPassword(
-                      email: adminEmail!,
-                      password: adminPassword!,
-                    );
-                  }
-
-                  // Step 4: save staff info in Firestore
-                  final newStaff = {
-                    "id": uid,
-                    "name": name,
-                    "email": email,
-                    "phone": phone,
-                    "address": address,
-                    "role": "staff",
-                    "image": image,
-                  };
-                  await staffRef.doc(uid).set(newStaff);
-
-                  if (mounted) Navigator.pop(context);
-
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("Staff added successfully!")),
-                  );
-                } catch (e) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text("Error: ${e.toString()}")),
-                  );
-                }
-              } else {
-                // Edit staff
-                final updatedStaff = {
-                  "name": name,
-                  "email": email,
-                  "phone": phone,
-                  "address": address,
-                  "role": "staff",
-                  "image": image,
-                };
-                await staffRef.doc(docId!).update(updatedStaff);
-                if (mounted) Navigator.pop(context);
-              }
-            },
-            child: const Text("Save"),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text("Delete"),
           ),
         ],
       ),
@@ -233,7 +321,15 @@ class _ManageStaffPageState extends State<ManageStaffPage> {
                       IconButton(
                         icon: const Icon(Icons.delete),
                         onPressed: () async {
-                          await staffRef.doc(docId).delete();
+                          final confirm = await confirmDeleteStaff();
+                          if (confirm == true) {
+                            await staffRef.doc(docId).delete();
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Staff deleted.')),
+                              );
+                            }
+                          }
                         },
                       ),
                     ],
