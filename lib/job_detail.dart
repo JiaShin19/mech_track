@@ -1,10 +1,452 @@
 // job_detail.dart
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+
 import 'job_model.dart';
 import 'customer_detail.dart';
 import 'vehicle_detail.dart';
 import 'parts_detail.dart';
 
+import '../services/notes_service.dart';
+import '../services/note_model.dart';
+import '../ui/image_utils.dart';
+import 'note_view_page.dart';
+
+class JobDetailScreen extends StatefulWidget {
+  final Job job;
+
+  const JobDetailScreen({super.key, required this.job});
+
+  @override
+  State<JobDetailScreen> createState() => _JobDetailScreenState();
+}
+
+class _JobDetailScreenState extends State<JobDetailScreen> {
+  Job get job => widget.job;
+
+  final _notesSvc = NotesService();
+
+  String _fmt(DateTime? d) =>
+      d == null ? '—' : DateFormat('d MMM yyyy HH:mm').format(d);
+
+  Color _getStatusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'in progress':
+        return Colors.orange;
+      case 'completed':
+        return Colors.green;
+      case 'assigned':
+        return Colors.blue;
+      case 'signed-off':
+        return Colors.purple;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  // ---------- Navigation helpers (optional) ----------
+  /*
+  Future<void> _goTimeTrack() async {
+    final started = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => TimeTrackPage(job: job)),
+    );
+    if (started == true && job.status != 'In Progress') {
+      DataService.updateJobStatus(job.id, 'In Progress');
+      setState(() {});
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Job is now In Progress')));
+    }
+  }
+
+  Future<void> _goSignOff() async {
+    final ok = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => SignOffPage(job: job)),
+    );
+    if (ok == true) {
+      DataService.updateJobStatus(job.id, 'Signed-Off');
+      setState(() {});
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Job signed off')));
+    }
+  }
+   */
+
+  // ---------- Reusable tiles ----------
+  Widget _clickableInfoCard(
+      String title,
+      IconData icon,
+      Widget content,
+      VoidCallback onTap,
+  ) {
+    return Card(
+      elevation: 2,
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      child: ListTile(
+        leading: Icon(icon, color: Colors.indigo),
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+        subtitle: content,
+        trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
+        onTap: onTap,
+      ),
+    );
+  }
+
+  Widget _nonClickableInfoCard(
+      String title,
+      IconData icon,
+      Widget content,
+      ) {
+    return Card(
+      elevation: 2,
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      child: ListTile(
+        leading: Icon(icon, color: Colors.indigo),
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+        subtitle: content,
+      ),
+    );
+  }
+
+  // Widget _actionButton(String title, IconData icon, VoidCallback onPressed) {
+  //   return Card(
+  //     elevation: 2,
+  //     margin: const EdgeInsets.symmetric(vertical: 4),
+  //     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+  //     child: ListTile(
+  //       leading: Icon(icon, color: Colors.indigo),
+  //       title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+  //       trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
+  //       onTap: onPressed,
+  //     ),
+  //   );
+  // }
+
+  // ---------- NEW: Notes section (shows ONLY when there are notes) ----------
+  Widget _notesSection() {
+    final stream =
+      _notesSvc.streamNotesFiltered(newestFirst: true, jobId: job.id);
+
+    return StreamBuilder<List<NoteModel>>(
+      stream: stream,
+      builder: (context, snap) {
+        if (!snap.hasData) return const SizedBox.shrink();
+        final notes = snap.data!;
+        if (notes.isEmpty) return const SizedBox.shrink();
+
+        return Card(
+          elevation: 2,
+          margin: const EdgeInsets.symmetric(vertical: 4),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: const [
+                    Icon(Icons.sticky_note_2, color: Colors.indigo),
+                    SizedBox(width: 8),
+                    Text('Notes',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                ListView.separated(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: notes.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 8),
+                  itemBuilder: (context, i) {
+                    final n = notes[i];
+                    final first = n.imagesB64.isNotEmpty ? n.imagesB64.first : null;
+
+                    return InkWell(
+                      borderRadius: BorderRadius.circular(10),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => NoteViewPage(noteId: n.id),
+                          ),
+                        );
+                      },
+                      child: Container(
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.grey.shade200),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        padding: const EdgeInsets.all(10),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: first == null
+                                ? SizedBox(
+                                  width: 56,
+                                  height: 56,
+                                  child: placeholderThumb(),
+                                  )
+                                : smartThumb(
+                                    first,
+                                    w: 56,
+                                    h: 56,
+                                    fit: BoxFit.cover,
+                                  ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    n.jobId.isEmpty ? job.id : n.jobId,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    n.text.isEmpty ? '(No text)' : n.text,
+                                    maxLines: 3,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(height: 1.25),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Align(
+                                    alignment: Alignment.bottomRight,
+                                    child: Text(
+                                      _fmt(n.createdAt),
+                                      style: const TextStyle(
+                                        color: Colors.grey,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // If you keep jobs in a local data store and want freshest status:
+    final current = job;
+
+    return Scaffold(
+      body: SafeArea(
+        child: Column(
+          children: [
+            // ---------- Header ----------
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey[300]!),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        current.id,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const Spacer(),
+                      if (current.status == 'Assigned')
+                        const Icon(Icons.assignment, color: Colors.grey, size: 20),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: _getStatusColor(current.status),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      current.status,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text("Assigned to:",
+                                style: TextStyle(
+                                    color: Colors.grey[600], fontSize: 12)),
+                            Text(
+                              current.assignedTo,
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.w500, fontSize: 14),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text("Created:",
+                                style: TextStyle(
+                                    color: Colors.grey[600], fontSize: 12)),
+                            Text(
+                              current.createdDate,
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.w500, fontSize: 14),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text("Total Time Spent:",
+                      style:
+                      TextStyle(color: Colors.grey[600], fontSize: 12)),
+                  Text(
+                    current.totalTimeSpent,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w500, fontSize: 14),
+                  ),
+                ],
+              ),
+            ),
+
+            // ---------- Body ----------
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                children: [
+                  _clickableInfoCard(
+                    "Customer",
+                    Icons.person,
+                    Text(current.customer.name),
+                    () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              CustomerDetailScreen(customer: current.customer),
+                        ),
+                      );
+                    },
+                  ),
+                  _clickableInfoCard(
+                    "Vehicle",
+                    Icons.directions_car,
+                    Text("${current.vehicle.model} (${current.vehicle.year})"),
+                      () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              VehicleDetailScreen(vehicle: current.vehicle),
+                        ),
+                      );
+                    },
+                  ),
+                  _clickableInfoCard(
+                    "Parts",
+                    Icons.inventory,
+                    Text("${current.partsCount} items assigned"),
+                      () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => PartsDetailScreen(parts: current.parts),
+                        ),
+                      );
+                    },
+                  ),
+                  _nonClickableInfoCard(
+                    "Job Description",
+                    Icons.description,
+                    Text(
+                      current.jobDescription,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  _nonClickableInfoCard(
+                    "Services",
+                    Icons.build,
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: current.services
+                      .map((s) => Padding(
+                            padding: const EdgeInsets.only(top: 2),
+                            child: Text("• $s"),
+                      ))
+                      .toList(),
+                    ),
+                  ),
+
+                  // ---------- NEW: Job Notes (only when any exist) ----------
+                  _notesSection(),
+
+                  const SizedBox(height: 20),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+
+      // Keep your bottom nav (returns to Home on index 0)
+      bottomNavigationBar: BottomNavigationBar(
+        type: BottomNavigationBarType.fixed,
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home"),
+          BottomNavigationBarItem(icon: Icon(Icons.note), label: "Notes"),
+          BottomNavigationBarItem(icon: Icon(Icons.history), label: "History"),
+          BottomNavigationBarItem(icon: Icon(Icons.summarize), label: "Summary"),
+        ],
+        selectedItemColor: Colors.indigo,
+        unselectedItemColor: Colors.grey,
+        onTap: (index) {
+          if (index == 0) Navigator.pop(context);
+        },
+      ),
+    );
+  }
+}
+
+/*
 class JobDetailScreen extends StatelessWidget {
   final Job job;
 
@@ -323,3 +765,4 @@ class JobDetailScreen extends StatelessWidget {
     );
   }
 }
+*/
