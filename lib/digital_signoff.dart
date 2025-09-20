@@ -1,8 +1,11 @@
+import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:signature/signature.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:path_provider/path_provider.dart'; // <-- for saving locally
+import 'package:path/path.dart' as p;
 
 class DigitalSignoffScreen extends StatefulWidget {
   final String jobId;
@@ -33,13 +36,21 @@ class _DigitalSignoffScreenState extends State<DigitalSignoffScreen> {
       final Uint8List? data = await _controller.toPngBytes();
       if (data == null) throw "Signature is empty.";
 
-      // Upload to Firebase Storage
-      final filename = "${widget.jobId}_${DateTime.now().millisecondsSinceEpoch}.png";
-      final ref = FirebaseStorage.instance.ref("signatures/$filename");
-      await ref.putData(data, SettableMetadata(contentType: "image/png"));
-      final url = await ref.getDownloadURL();
+      // 1. Save locally into temp directory (simulating "assets/images")
+      final dir = await getTemporaryDirectory();
+      final filename = "${widget.jobId}_signature.png";
+      final localPath = p.join(dir.path, filename);
+      final file = File(localPath);
+      await file.writeAsBytes(data);
 
-      // Save metadata to Firestore
+      // 2. Upload to Firebase Storage under /jobs/{jobId}/signature.png
+      final storageRef = FirebaseStorage.instance
+          .ref()
+          .child("jobs/${widget.jobId}/signature.png");
+      await storageRef.putFile(file, SettableMetadata(contentType: "image/png"));
+      final url = await storageRef.getDownloadURL();
+
+      // 3. Save metadata into Firestore under jobs/{jobId}
       await FirebaseFirestore.instance
           .collection('jobs')
           .doc(widget.jobId)
@@ -51,11 +62,11 @@ class _DigitalSignoffScreenState extends State<DigitalSignoffScreen> {
 
       setState(() => _uploadedUrl = url);
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Signature uploaded!"))
+        const SnackBar(content: Text("Signature saved & uploaded!")),
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Error: $e"))
+        SnackBar(content: Text("Error: $e")),
       );
     } finally {
       setState(() => _busy = false);
@@ -72,7 +83,8 @@ class _DigitalSignoffScreenState extends State<DigitalSignoffScreen> {
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
-            Text("Please sign below:", style: Theme.of(context).textTheme.titleMedium),
+            Text("Please sign below:",
+                style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 12),
             Container(
               decoration: BoxDecoration(
@@ -103,7 +115,7 @@ class _DigitalSignoffScreenState extends State<DigitalSignoffScreen> {
             ),
             if (_uploadedUrl != null) ...[
               const SizedBox(height: 20),
-              Text("Signature saved!", style: TextStyle(color: Colors.green)),
+              const Text("Signature saved!", style: TextStyle(color: Colors.green)),
               Image.network(_uploadedUrl!, height: 120),
             ]
           ],

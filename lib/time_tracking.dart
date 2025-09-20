@@ -7,30 +7,20 @@ import 'package:provider/provider.dart';
 /// TimeTrackingService
 /// =============================
 /// Firestore Data Model:
-/// jobs/{jobId} fields (required):
+/// jobs/{jobId} fields:
 ///   status: String ("Assigned", "In Progress", "Completed", etc.)
 ///   aggregatedDurationSeconds: int (0 if new)
-///   runningSessionId: String|null
+///   running: bool
+///   startedAt: Timestamp|null
 /// Optional:
 ///   totalTimeSpentDisplay: String (cached human-readable)
-///
-/// Subcollection:
-/// jobs/{jobId}/timeSessions/{sessionId}:
-///   mechanicId: String
-///   startedAt: Timestamp
-///   endedAt: Timestamp|null
-///   durationSeconds: int|null (filled on end)
-///   status: "running" | "stopped"
-class timeTrackingService {
+class TimeTrackingService {
   final FirebaseFirestore _db;
-  timeTrackingService({FirebaseFirestore? firestore})
+  TimeTrackingService({FirebaseFirestore? firestore})
       : _db = firestore ?? FirebaseFirestore.instance;
 
   DocumentReference<Map<String, dynamic>> _job(String jobId) =>
       _db.collection('jobs').doc(jobId);
-
-  CollectionReference<Map<String, dynamic>> _sessions(String jobId) =>
-      _job(jobId).collection('timeSessions');
 
   /// Start a new session (or resume). Fails if one already running.
   Future<void> startSession({
@@ -44,22 +34,13 @@ class timeTrackingService {
         throw StateError('Job $jobId does not exist in Firestore.');
       }
       final d = snap.data()!;
-      if (d['runningSessionId'] != null) {
+      if ((d['running'] ?? false) == true) {
         throw StateError('A time session is already running.');
       }
 
-      final sessionRef = _sessions(jobId).doc();
-      txn.set(sessionRef, {
-        'mechanicId': mechanicId,
-        'startedAt': FieldValue.serverTimestamp(),
-        'endedAt': null,
-        'durationSeconds': null,
-        'status': 'running',
-      });
-
       txn.update(jobRef, {
-        'runningSessionId': sessionRef.id,
-        'aggregatedDurationSeconds': d['aggregatedDurationSeconds'] ?? 0,
+        'running': true,
+        'startedAt': FieldValue.serverTimestamp(),
         'status': (d['status'] == 'Assigned') ? 'In Progress' : d['status'],
       });
     });
@@ -69,32 +50,21 @@ class timeTrackingService {
   Future<void> pauseSession(String jobId) async {
     final jobRef = _job(jobId);
     await _db.runTransaction((txn) async {
-      final jobSnap = await txn.get(jobRef);
-      if (!jobSnap.exists) return;
-      final jd = jobSnap.data()!;
-      final runningId = jd['runningSessionId'];
-      if (runningId == null) return;
+      final snap = await txn.get(jobRef);
+      if (!snap.exists) return;
+      final d = snap.data()!;
+      if ((d['running'] ?? false) != true || d['startedAt'] == null) return;
 
-      final sessionRef = _sessions(jobId).doc(runningId);
-      final sessionSnap = await txn.get(sessionRef);
-      final sd = sessionSnap.data();
-      if (sd == null || sd['status'] != 'running') return;
-
-      final startedAtTs = sd['startedAt'] as Timestamp;
+      final startedAtTs = d['startedAt'] as Timestamp;
       final startedAt = startedAtTs.toDate();
       final now = DateTime.now();
       final secs = now.difference(startedAt).inSeconds;
-      final prevAgg = (jd['aggregatedDurationSeconds'] ?? 0) as int;
-
-      txn.update(sessionRef, {
-        'endedAt': now,
-        'durationSeconds': secs,
-        'status': 'stopped',
-      });
+      final prevAgg = (d['aggregatedDurationSeconds'] ?? 0) as int;
 
       final newTotal = prevAgg + secs;
       txn.update(jobRef, {
-        'runningSessionId': null,
+        'running': false,
+        'startedAt': null,
         'aggregatedDurationSeconds': newTotal,
         'totalTimeSpentDisplay': _formatHoursDisplay(newTotal),
       });
@@ -112,35 +82,21 @@ class timeTrackingService {
   Future<void> completeJob(String jobId) async {
     final jobRef = _job(jobId);
     await _db.runTransaction((txn) async {
-      final jobSnap = await txn.get(jobRef);
-      if (!jobSnap.exists) return;
-      final jd = jobSnap.data()!;
-      int agg = (jd['aggregatedDurationSeconds'] ?? 0) as int;
-      final runningId = jd['runningSessionId'];
+      final snap = await txn.get(jobRef);
+      if (!snap.exists) return;
+      final d = snap.data()!;
+      int agg = (d['aggregatedDurationSeconds'] ?? 0) as int;
 
-      if (runningId != null) {
-        final sessionRef = _sessions(jobId).doc(runningId);
-        final sessionSnap = await txn.get(sessionRef);
-        final sd = sessionSnap.data();
-        if (sd != null && sd['status'] == 'running') {
-          final startedAt = (sd['startedAt'] as Timestamp).toDate();
-          final now = DateTime.now();
-          final dur = now.difference(startedAt).inSeconds;
-          agg += dur;
-
-          txn.update(sessionRef, {
-            'endedAt': now,
-            'durationSeconds': dur,
-            'status': 'stopped',
-          });
-
-          txn.update(jobRef, {
-            'runningSessionId': null,
-          });
-        }
+      if ((d['running'] ?? false) == true && d['startedAt'] != null) {
+        final startedAt = (d['startedAt'] as Timestamp).toDate();
+        final now = DateTime.now();
+        final dur = now.difference(startedAt).inSeconds;
+        agg += dur;
       }
 
       txn.update(jobRef, {
+        'running': false,
+        'startedAt': null,
         'status': 'Completed',
         'aggregatedDurationSeconds': agg,
         'totalTimeSpentDisplay': _formatHoursDisplay(agg),
@@ -157,23 +113,22 @@ class timeTrackingService {
 /// =============================
 /// JobTimerProvider
 /// =============================
-/// Observes the job + running session to compute live total seconds.
+/// Observes the job to compute live total seconds.
 class JobTimerProvider extends ChangeNotifier {
   final String jobId;
   final FirebaseFirestore _db;
   StreamSubscription? _jobSub;
-  StreamSubscription? _sessionSub;
   Timer? _ticker;
 
   bool _loading = true;
   bool get isLoading => _loading;
 
   int _aggregated = 0;
-  String? _runningSessionId;
-  DateTime? _runningStartedAt;
+  bool _running = false;
+  DateTime? _startedAt;
   String _status = 'Assigned';
 
-  bool get isRunning => _runningSessionId != null;
+  bool get isRunning => _running;
   String get status => _status;
 
   JobTimerProvider(this.jobId, {FirebaseFirestore? firestore})
@@ -186,31 +141,14 @@ class JobTimerProvider extends ChangeNotifier {
       if (!doc.exists) return;
       final d = doc.data()!;
       _aggregated = (d['aggregatedDurationSeconds'] ?? 0) as int;
-      _runningSessionId = d['runningSessionId'];
+      _running = (d['running'] ?? false) as bool;
       _status = (d['status'] ?? 'Assigned').toString();
-
-      if (_runningSessionId == null) {
-        _runningStartedAt = null;
-        _stopTicker();
-        _sessionSub?.cancel();
+      if (_running && d['startedAt'] is Timestamp) {
+        _startedAt = (d['startedAt'] as Timestamp).toDate();
+        _startTicker();
       } else {
-        // watch session
-        _sessionSub?.cancel();
-        _sessionSub = _db
-            .collection('jobs')
-            .doc(jobId)
-            .collection('timeSessions')
-            .doc(_runningSessionId)
-            .snapshots()
-            .listen((s) {
-          final sd = s.data();
-          if (sd == null) return;
-          final ts = sd['startedAt'];
-          if (ts is Timestamp) {
-            _runningStartedAt = ts.toDate();
-            _startTicker();
-          }
-        });
+        _startedAt = null;
+        _stopTicker();
       }
       _loading = false;
       notifyListeners();
@@ -218,11 +156,11 @@ class JobTimerProvider extends ChangeNotifier {
   }
 
   int get totalSeconds {
-    if (!isRunning || _runningStartedAt == null) {
+    if (!_running || _startedAt == null) {
       return _aggregated;
     }
     final now = DateTime.now();
-    final live = now.difference(_runningStartedAt!).inSeconds;
+    final live = now.difference(_startedAt!).inSeconds;
     return _aggregated + (live < 0 ? 0 : live);
   }
 
@@ -253,7 +191,6 @@ class JobTimerProvider extends ChangeNotifier {
   @override
   void dispose() {
     _jobSub?.cancel();
-    _sessionSub?.cancel();
     _stopTicker();
     super.dispose();
   }
@@ -281,7 +218,7 @@ class TimeTrackingPanel extends StatefulWidget {
 }
 
 class _TimeTrackingPanelState extends State<TimeTrackingPanel> {
-  final _svc = timeTrackingService();
+  final _svc = TimeTrackingService();
   bool _busy = false;
 
   Future<void> _exec(Future<void> Function() fn) async {
@@ -391,15 +328,17 @@ class _TimeTrackingPanelState extends State<TimeTrackingPanel> {
                           ),
                           icon: const Icon(Icons.pause),
                           label: const Text('Pause'),
-                          onPressed:
-                          _busy ? null : () => _exec(() => _svc.pauseSession(widget.jobId)),
+                          onPressed: _busy
+                              ? null
+                              : () => _exec(() => _svc.pauseSession(widget.jobId)),
                         ),
                       if (!running && status != 'Completed')
                         OutlinedButton.icon(
                           icon: const Icon(Icons.check),
                           label: const Text('Complete'),
-                          onPressed:
-                          _busy ? null : () => _exec(() => _svc.completeJob(widget.jobId)),
+                          onPressed: _busy
+                              ? null
+                              : () => _exec(() => _svc.completeJob(widget.jobId)),
                         ),
                       if (status == 'Completed')
                         const Chip(

@@ -1,11 +1,14 @@
 // job_detail.dart
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 import 'job_model.dart';
 import 'customer_detail.dart';
 import 'vehicle_detail.dart';
 import 'parts_detail.dart';
+import 'time_tracking.dart';
+import 'digital_signoff.dart';
 
 import '../services/notes_service.dart';
 import '../services/note_model.dart';
@@ -23,7 +26,6 @@ class JobDetailScreen extends StatefulWidget {
 
 class _JobDetailScreenState extends State<JobDetailScreen> {
   Job get job => widget.job;
-
   final _notesSvc = NotesService();
 
   String _fmt(DateTime? d) =>
@@ -250,6 +252,7 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
   Widget build(BuildContext context) {
     // If you keep jobs in a local data store and want freshest status:
     final current = job;
+    final mechanicId = FirebaseAuth.instance.currentUser?.uid ?? '';
 
     return Scaffold(
       appBar: AppBar(
@@ -356,7 +359,38 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
                 ],
               ),
             ),
+            TimeTrackingPanel(
+              jobId: job.id,
+              mechanicId: mechanicId,
+              margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+              showStatus: true,
+            ),
 
+            // ---------- Digital Sign-Off Button (NEW) ----------
+            if (job.status == "Completed")
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                child: ElevatedButton.icon(
+                  icon: const Icon(Icons.check_circle_outline),
+                  label: const Text("Sign Off"),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.indigo,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size.fromHeight(44),
+                  ),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => DigitalSignoffScreen(
+                          jobId: job.id,
+                          mechanicId: mechanicId,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
             // ---------- Body ----------
             Expanded(
               child: ListView(
