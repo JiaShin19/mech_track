@@ -25,6 +25,58 @@ class SummaryScreen extends StatefulWidget {
 
 class _SummaryScreenState extends State<SummaryScreen> {
   bool isMonthly = true;
+  bool isLoading = true;
+  Map<String, dynamic>? _currentData;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadInitialData();
+  }
+
+  Future<void> _loadInitialData() async {
+    // Ensure current mechanic is loaded first
+    await DataService.getCurrentMechanic();
+    await _loadData();
+  }
+
+  Future<void> _loadData() async {
+    setState(() {
+      isLoading = true;
+    });
+
+    try {
+      List<Job> jobs;
+      if (isMonthly) {
+        jobs = await DataService.getMonthlyJobs();
+      } else {
+        jobs = await DataService.getYearlyJobs();
+      }
+
+      final data = _calculateStats(jobs);
+      setState(() {
+        _currentData = data;
+        isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        isLoading = false;
+        _currentData = _getEmptyStats();
+      });
+    }
+  }
+
+  Map<String, dynamic> _getEmptyStats() {
+    return {
+      'totalJobs': 0,
+      'completed': 0,
+      'pending': 0,
+      'revenue': 0,
+      'avgCompletionTime': 0.0,
+      'topServices': <Map<String, dynamic>>[],
+      'mechanics': <MechanicPerformance>[],
+    };
+  }
 
   Map<String, dynamic> _calculateStats(List<Job> jobs) {
     int totalJobs = jobs.length;
@@ -56,10 +108,11 @@ class _SummaryScreenState extends State<SummaryScreen> {
     // 计算技师表现（只统计已完成的工作）
     Map<String, List<Job>> mechanicJobs = {};
     for (Job job in jobs.where((j) => j.status == "Completed")) {
-      if (!mechanicJobs.containsKey(job.assignedTo)) {
-        mechanicJobs[job.assignedTo] = [];
+      String assignedTo = job.assignedTo.isNotEmpty ? job.assignedTo : "Unassigned";
+      if (!mechanicJobs.containsKey(assignedTo)) {
+        mechanicJobs[assignedTo] = [];
       }
-      mechanicJobs[job.assignedTo]!.add(job);
+      mechanicJobs[assignedTo]!.add(job);
     }
 
     List<MechanicPerformance> mechanics = mechanicJobs.entries.map((entry) {
@@ -70,8 +123,8 @@ class _SummaryScreenState extends State<SummaryScreen> {
       double avgTime = 2.5; // 默认值
       List<double> times = [];
       for (Job job in mechanicCompletedJobs) {
-        if (job.totalTimeSpent != "-") {
-          String timeStr = job.totalTimeSpent.replaceAll('h', '');
+        if (job.totalTimeSpent != "-" && job.totalTimeSpent.isNotEmpty) {
+          String timeStr = job.totalTimeSpent.replaceAll('h', '').trim();
           double time = double.tryParse(timeStr) ?? 2.5;
           times.add(time);
         }
@@ -93,8 +146,8 @@ class _SummaryScreenState extends State<SummaryScreen> {
     // 计算平均完成时间
     List<double> completionTimes = [];
     for (Job job in jobs.where((j) => j.status == "Completed")) {
-      if (job.totalTimeSpent != "-") {
-        String timeStr = job.totalTimeSpent.replaceAll('h', '');
+      if (job.totalTimeSpent != "-" && job.totalTimeSpent.isNotEmpty) {
+        String timeStr = job.totalTimeSpent.replaceAll('h', '').trim();
         double time = double.tryParse(timeStr) ?? 2.5;
         completionTimes.add(time);
       }
@@ -115,17 +168,7 @@ class _SummaryScreenState extends State<SummaryScreen> {
   }
 
   Map<String, dynamic> get currentData {
-    List<Job> jobs;
-
-    if (isMonthly) {
-      // 月度数据：当前月份的工作（2025年7月）
-      jobs = DataService.getMonthlyJobs();
-    } else {
-      // 年度数据：真实的历史数据（2024年完整 + 2025年当前）
-      jobs = DataService.getYearlyJobs();
-    }
-
-    return _calculateStats(jobs);
+    return _currentData ?? _getEmptyStats();
   }
 
   @override
@@ -188,7 +231,21 @@ class _SummaryScreenState extends State<SummaryScreen> {
             ),
             // Content
             Expanded(
-              child: SingleChildScrollView(
+              child: isLoading
+                  ? const Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    CircularProgressIndicator(color: Colors.indigo),
+                    SizedBox(height: 16),
+                    Text(
+                      "Loading summary data...",
+                      style: TextStyle(color: Colors.grey),
+                    ),
+                  ],
+                ),
+              )
+                  : SingleChildScrollView(
                 padding: const EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -225,10 +282,13 @@ class _SummaryScreenState extends State<SummaryScreen> {
   Widget _buildToggleButton(String text, bool isFirst) {
     final isSelected = (isFirst && isMonthly) || (!isFirst && !isMonthly);
     return GestureDetector(
-      onTap: () {
-        setState(() {
-          isMonthly = isFirst;
-        });
+      onTap: () async {
+        if ((isFirst && !isMonthly) || (!isFirst && isMonthly)) {
+          setState(() {
+            isMonthly = isFirst;
+          });
+          await _loadData();
+        }
       },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -498,7 +558,7 @@ class _SummaryScreenState extends State<SummaryScreen> {
   }
 
   Widget _buildMechanicPerformance() {
-    final mechanics = currentData['mechanics'] as List;
+    final mechanics = currentData['mechanics'] as List<MechanicPerformance>;
     if (mechanics.isEmpty) {
       return Container(
         padding: const EdgeInsets.all(12),
@@ -540,8 +600,8 @@ class _SummaryScreenState extends State<SummaryScreen> {
     );
   }
 
-  Widget _buildMechanicCard(dynamic mechanic) {
-    bool isCurrentMechanic = mechanic.name == DataService.currentMechanic;
+  Widget _buildMechanicCard(MechanicPerformance mechanic) {
+    bool isCurrentMechanic = mechanic.name == DataService.currentMechanicName;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 6),
@@ -607,6 +667,16 @@ class _SummaryScreenState extends State<SummaryScreen> {
 
   List<FlSpot> _getRevenueSpots() {
     double baseRevenue = currentData['revenue'].toDouble();
+    if (baseRevenue == 0) {
+      return [
+        FlSpot(0, 0),
+        FlSpot(1, 0),
+        FlSpot(2, 0),
+        FlSpot(3, 0),
+        FlSpot(4, 0),
+        FlSpot(5, 0),
+      ];
+    }
 
     return [
       FlSpot(0, baseRevenue * 0.7),
@@ -682,3 +752,4 @@ class _SummaryScreenState extends State<SummaryScreen> {
     return number.toString();
   }
 }
+

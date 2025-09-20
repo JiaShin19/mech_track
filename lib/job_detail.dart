@@ -252,6 +252,16 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
     final current = job;
 
     return Scaffold(
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            Navigator.pop(context);
+          },
+        ),
+      ),
       body: SafeArea(
         child: Column(
           children: [
@@ -428,20 +438,20 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
       ),
 
       // Keep your bottom nav (returns to Home on index 0)
-      bottomNavigationBar: BottomNavigationBar(
-        type: BottomNavigationBarType.fixed,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home"),
-          BottomNavigationBarItem(icon: Icon(Icons.note), label: "Notes"),
-          BottomNavigationBarItem(icon: Icon(Icons.history), label: "History"),
-          BottomNavigationBarItem(icon: Icon(Icons.summarize), label: "Summary"),
-        ],
-        selectedItemColor: Colors.indigo,
-        unselectedItemColor: Colors.grey,
-        onTap: (index) {
-          if (index == 0) Navigator.pop(context);
-        },
-      ),
+      // bottomNavigationBar: BottomNavigationBar(
+      //   type: BottomNavigationBarType.fixed,
+      //   items: const [
+      //     BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home"),
+      //     BottomNavigationBarItem(icon: Icon(Icons.note), label: "Notes"),
+      //     BottomNavigationBarItem(icon: Icon(Icons.history), label: "History"),
+      //     BottomNavigationBarItem(icon: Icon(Icons.summarize), label: "Summary"),
+      //   ],
+      //   selectedItemColor: Colors.indigo,
+      //   unselectedItemColor: Colors.grey,
+      //   onTap: (index) {
+      //     if (index == 0) Navigator.pop(context);
+      //   },
+      // ),
     );
   }
 }
