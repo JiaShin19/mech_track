@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/auth_service.dart';
+import '../services/secure_storage_service.dart';
 
 class LoginPage extends StatefulWidget {
   static const route = '/login';
@@ -27,7 +28,13 @@ class _LoginPageState extends State<LoginPage> {
     setState(() => _loading = true);
     try {
       await _auth.signInWithEmail(_email.text.trim(), _password.text);
-      // AuthGate will notice and navigate automatically.
+
+      final storage = SecureStorageService();
+      await storage.saveAdminCredentials(
+        email: _email.text.trim(),
+        password: _password.text,
+      );
+
     } on FirebaseAuthException catch (e) {
       _snack(e.message ?? 'Sign-in failed');
     } catch (_) {
@@ -36,6 +43,7 @@ class _LoginPageState extends State<LoginPage> {
       if (mounted) setState(() => _loading = false);
     }
   }
+
 
   Future<void> _resetPassword() async {
     final email = _email.text.trim();
