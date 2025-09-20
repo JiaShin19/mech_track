@@ -116,6 +116,27 @@ class _ManageCustomersPageState extends State<ManageCustomersPage> {
     );
   }
 
+  Future<bool?> confirmDelete(String title, String message) {
+    return showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text("Cancel"),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text("Delete"),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -156,7 +177,18 @@ class _ManageCustomersPageState extends State<ManageCustomersPage> {
                             IconButton(
                               icon: const Icon(Icons.delete),
                               onPressed: () async {
-                                await customersRef.doc(customerId).delete();
+                                final confirm = await confirmDelete(
+                                  "Delete Customer",
+                                  "Are you sure you want to delete this customer? All their vehicles will also be deleted. This action cannot be undone.",
+                                );
+                                if (confirm == true) {
+                                  await customersRef.doc(customerId).delete();
+                                  if (mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(content: Text('Customer deleted.')),
+                                    );
+                                  }
+                                }
                               },
                             ),
                           ],
@@ -207,7 +239,18 @@ class _ManageCustomersPageState extends State<ManageCustomersPage> {
                                       IconButton(
                                         icon: const Icon(Icons.delete),
                                         onPressed: () async {
-                                          await customersRef.doc(customerId).collection('vehicle').doc(vehicleId).delete();
+                                          final confirm = await confirmDelete(
+                                            "Delete Vehicle",
+                                            "Are you sure you want to delete this vehicle? This action cannot be undone.",
+                                          );
+                                          if (confirm == true) {
+                                            await customersRef.doc(customerId).collection('vehicle').doc(vehicleId).delete();
+                                            if (mounted) {
+                                              ScaffoldMessenger.of(context).showSnackBar(
+                                                const SnackBar(content: Text('Vehicle deleted.')),
+                                              );
+                                            }
+                                          }
                                         },
                                       ),
                                     ],
