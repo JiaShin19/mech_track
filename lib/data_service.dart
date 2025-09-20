@@ -153,6 +153,17 @@ class DataService {
       }).toList(),
     );
   }
+
+  // Temporary in-memory cache of jobs
+  static List<Job> _jobs = [];
+
+  // Getter to access cached jobs
+  static List<Job> get currentJobs => _jobs;
+
+  // Method to load jobs into cache
+  static Future<void> loadJobs() async {
+    _jobs = await getAllJobs();
+  }
 }
 
 // // data_service.dart

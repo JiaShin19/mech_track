@@ -558,6 +558,7 @@ import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:mech_track/profile.dart';
 
 import 'firebase_options.dart';
 import 'login_page.dart';
@@ -602,6 +603,7 @@ class MyApp extends StatelessWidget {
         LoginPage.route: (_) => const LoginPage(),
         NotesListPage.route: (_) => const NotesListPage(),
         ChangePasswordPage.route: (_) => const ChangePasswordPage(),
+        ProfilePage.route: (_) => const ProfilePage(),
         SettingsPage.route: (_) => const SettingsPage(),
       },
     );
