@@ -1,308 +1,3 @@
-// import 'package:flutter/material.dart';
-// import 'package:intl/intl.dart';
-// import 'package:firebase_auth/firebase_auth.dart';
-// import '../services/auth_service.dart';
-// import '../services/notes_service.dart';
-// import 'note_editor_page.dart';
-//
-// class NotesListPage extends StatefulWidget {
-//   static const route = '/notes';
-//   const NotesListPage({super.key});
-//
-//   @override
-//   State<NotesListPage> createState() => _NotesListPageState();
-// }
-//
-// class _NotesListPageState extends State<NotesListPage> {
-//   final _svc = NotesService();
-//   bool _newestFirst = true;
-//
-//   String _fmt(DateTime d) => DateFormat('d MMM yyyy HH:mm').format(d);
-//
-//   // Brand colors to match your other pages
-//   static const _brand = Color(0xFF2B384C);
-//   static const _onBrand = Color(0xFFF0F4F3);
-//
-//   @override
-//   Widget build(BuildContext context) {
-//     return Scaffold(
-//       appBar: AppBar(
-//         title: const Text('Notes'),
-//         actions: [
-//           IconButton(
-//             tooltip: _newestFirst ? 'Sort oldest' : 'Sort newest',
-//             icon: const Icon(Icons.sort),
-//             onPressed: () => setState(() => _newestFirst = !_newestFirst),
-//           ),
-//           IconButton(
-//             tooltip: 'Sign out',
-//             icon: const Icon(Icons.logout),
-//             onPressed: () async => AuthService().signOut(),
-//           ),
-//         ],
-//       ),
-//       floatingActionButton: FloatingActionButton(
-//         onPressed: () => Navigator.of(context).push(
-//           MaterialPageRoute(builder: (_) => const NoteEditorPage()),
-//         ),
-//         child: const Icon(Icons.add),
-//       ),
-//       body: StreamBuilder<List<NoteModel>>(
-//         stream: _svc.streamNotes(newestFirst: _newestFirst),
-//         builder: (context, snap) {
-//           if (!snap.hasData) {
-//             return const Center(child: CircularProgressIndicator());
-//           }
-//           final notes = snap.data!;
-//           if (notes.isEmpty) {
-//             return const Center(child: Text('No notes yet. Tap + to add.'));
-//           }
-//           return ListView.separated(
-//             padding: const EdgeInsets.all(12),
-//             itemBuilder: (_, i) {
-//               final n = notes[i];
-//               final thumb = (n.images.isNotEmpty) ? n.images.first : null;
-//               return Dismissible(
-//                 key: ValueKey(n.id),
-//                 background: Container(color: Colors.red, alignment: Alignment.centerLeft, padding: const EdgeInsets.only(left: 16), child: const Icon(Icons.delete, color: Colors.white)),
-//                 secondaryBackground: Container(color: Colors.red, alignment: Alignment.centerRight, padding: const EdgeInsets.only(right: 16), child: const Icon(Icons.delete, color: Colors.white)),
-//                 onDismissed: (_) => _svc.delete(n.id),
-//                 child: ListTile(
-//                   onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => NoteEditorPage(noteId: n.id))),
-//                   leading: ClipRRect(
-//                     borderRadius: BorderRadius.circular(8),
-//                     child: thumb == null
-//                         ? Container(width: 56, height: 56, color: Colors.grey.shade200, child: const Icon(Icons.image, color: Colors.grey))
-//                         : Image.network(thumb, width: 56, height: 56, fit: BoxFit.cover),
-//                   ),
-//                   title: Text(n.jobId.isEmpty ? 'Job ID' : n.jobId, style: const TextStyle(fontWeight: FontWeight.w600)),
-//                   subtitle: Text(n.text.isEmpty ? '(No text)' : n.text, maxLines: 2, overflow: TextOverflow.ellipsis),
-//                   trailing: Text(_fmt(n.createdAt), style: const TextStyle(color: Colors.grey)),
-//                 ),
-//               );
-//             },
-//             separatorBuilder: (_, __) => const SizedBox(height: 8),
-//             itemCount: notes.length,
-//           );
-//         },
-//       ),
-//     );
-//   }
-// }
-/*
-import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
-import '../services/auth_service.dart';
-import '../services/notes_service.dart';
-import '../services/note_model.dart';
-import 'note_editor_page.dart';
-
-import 'dart:convert';
-import 'package:flutter/widgets.dart';
-
-Widget _imageThumb(String source) {
-  if (source.startsWith('data:image/')) {
-    final b64 = source.substring(source.indexOf(',') + 1);
-    final bytes = base64Decode(b64);
-    return Image.memory(bytes, fit: BoxFit.cover);
-  } else {
-    return Image.network(source, fit: BoxFit.cover);
-  }
-}
-
-class NotesListPage extends StatefulWidget {
-  static const route = '/notes';
-  const NotesListPage({super.key});
-
-  @override
-  State<NotesListPage> createState() => _NotesListPageState();
-}
-
-class _NotesListPageState extends State<NotesListPage> {
-  final _svc = NotesService();
-  bool _newestFirst = true;
-
-  // String _fmt(DateTime d) => DateFormat('d MMM yyyy HH:mm').format(d);
-  String _fmt(DateTime? d) =>
-      d == null ? '—' : DateFormat('d MMM yyyy HH:mm').format(d);
-
-  // Brand colors to match your other pages
-  static const _brand = Color(0xFF2B384C);
-  static const _onBrand = Color(0xFFF0F4F3);
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: _brand,
-        foregroundColor: _onBrand,
-        heroTag: null,
-        onPressed: () => Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const NoteEditorPage()),
-        ),
-        child: const Icon(Icons.add),
-      ),
-      body: StreamBuilder<List<NoteModel>>(
-        stream: _svc.streamNotes(newestFirst: _newestFirst),
-        builder: (context, snap) {
-          // While loading: show header + a centered spinner
-          if (!snap.hasData) {
-            return NestedScrollView(
-              headerSliverBuilder: (_, __) => [
-                _appHeader(context, noteCount: 0),
-              ],
-              body: const Center(child: CircularProgressIndicator()),
-            );
-          }
-
-          final notes = snap.data!;
-          return NestedScrollView(
-            headerSliverBuilder: (_, __) => [
-              _appHeader(context, noteCount: notes.length),
-            ],
-            body: notes.isEmpty
-                ? const Center(child: Text('No notes yet. Tap + to add.'))
-                : ListView.separated(
-              padding: const EdgeInsets.all(12),
-              itemBuilder: (_, i) {
-                final n = notes[i];
-                final thumb = (n.images.isNotEmpty) ? n.images.first : null;
-                return Dismissible(
-                  key: ValueKey(n.id),
-                  background: Container(
-                    color: Colors.red,
-                    alignment: Alignment.centerLeft,
-                    padding: const EdgeInsets.only(left: 16),
-                    child: const Icon(Icons.delete, color: Colors.white),
-                  ),
-                  secondaryBackground: Container(
-                    color: Colors.red,
-                    alignment: Alignment.centerRight,
-                    padding: const EdgeInsets.only(right: 16),
-                    child: const Icon(Icons.delete, color: Colors.white),
-                  ),
-                  onDismissed: (_) => _svc.delete(n.id),
-                  child: ListTile(
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => NoteEditorPage(noteId: n.id),
-                      ),
-                    ),
-                    leading: ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: thumb == null
-                          ? Container(
-                        width: 56,
-                        height: 56,
-                        color: Colors.grey.shade200,
-                        child: const Icon(Icons.image, color: Colors.grey),
-                      )
-                          : Image.network(thumb, width: 56, height: 56, fit: BoxFit.cover),
-                    ),
-                    title: Text(
-                      n.jobId.isEmpty ? 'Job ID' : n.jobId,
-                      style: const TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                    subtitle: Text(
-                      n.text.isEmpty ? '(No text)' : n.text,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    trailing: Text(
-                      _fmt(n.createdAt),
-                      style: const TextStyle(color: Colors.grey),
-                    ),
-                  ),
-                );
-              },
-              separatorBuilder: (_, __) => const SizedBox(height: 8),
-              itemCount: notes.length,
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  /// Sliver header to match the look of Service History / Summary pages.
-  SliverAppBar _appHeader(BuildContext context, {required int noteCount}) {
-    return SliverAppBar(
-      pinned: true,
-      stretch: true,
-      expandedHeight: 132,
-      backgroundColor: _brand,
-      foregroundColor: _onBrand,
-      elevation: 1,
-      shape: const ContinuousRectangleBorder(
-        borderRadius: BorderRadius.vertical(bottom: Radius.circular(24)),
-      ),
-      // Collapsed title
-      title: const Text('Notes', style: TextStyle(fontWeight: FontWeight.w700)),
-      actions: [
-        IconButton(
-          tooltip: _newestFirst ? 'Sort oldest' : 'Sort newest',
-          icon: const Icon(Icons.swap_vert),
-          onPressed: () => setState(() => _newestFirst = !_newestFirst),
-        ),
-        IconButton(
-          tooltip: 'Sign out',
-          icon: const Icon(Icons.logout),
-          onPressed: () async => AuthService().signOut(),
-        ),
-        const SizedBox(width: 4),
-      ],
-
-      // flexibleSpace: FlexibleSpaceBar(
-      //   titlePadding: const EdgeInsetsDirectional.only(start: 16, bottom: 16),
-      //   // Expanded title (shows when header is expanded)
-      //   title: const Text(
-      //     'Notes',
-      //     style: TextStyle(fontWeight: FontWeight.w700),
-      //   ),
-      //   background: Container(
-      //     color: _brand,
-      //     padding: const EdgeInsets.fromLTRB(16, kToolbarHeight + 16, 16, 20),
-      //     alignment: Alignment.bottomLeft,
-      //     child: Text(
-      //       '$noteCount note${noteCount == 1 ? '' : 's'}',
-      //       style: const TextStyle(
-      //         color: _onBrand,
-      //         fontSize: 12,
-      //         fontWeight: FontWeight.w500,
-      //         letterSpacing: .3,
-      //       ),
-      //     ),
-      //   ),
-      // ),
-      // Keep a bit of expanded height for a stat line (note count)
-      flexibleSpace: const FlexibleSpaceBar(
-        // We don't set a second `title` here to avoid duplication/flicker.
-        collapseMode: CollapseMode.pin,
-      ),
-
-      bottom: PreferredSize(
-        preferredSize: const Size.fromHeight(34),
-        child: Align(
-          alignment: Alignment.centerLeft,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-            child: Text(
-              '$noteCount note${noteCount == 1 ? '' : 's'}',
-              style: const TextStyle(
-                color: _onBrand,
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-                letterSpacing: .3,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-*/
-
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/notes_service.dart';
@@ -322,6 +17,13 @@ class _NotesListPageState extends State<NotesListPage> {
   final _svc = NotesService();
   bool _newestFirst = true;
 
+  // selection state
+  final Set<String> _selected = {};
+  bool get _selectionMode => _selected.isNotEmpty;
+
+  // cache latest notes for header actions (e.g. select all)
+  List<NoteModel> _latest = [];
+
   // keep last successful data to reduce flicker when switching sort
   List<NoteModel>? _cache;
 
@@ -331,172 +33,415 @@ class _NotesListPageState extends State<NotesListPage> {
   static const _brand = Color(0xFF2B384C);
   static const _onBrand = Color(0xFFF0F4F3);
 
+  // NEW: fixed height for every list row
+  static const double kRowHeight = 100;
+
+  void _clearSelection() => setState(_selected.clear);
+
+  void _toggleSelection(String id) {
+    setState(() {
+      if (_selected.contains(id)) {
+        _selected.remove(id);
+      } else {
+        _selected.add(id);
+      }
+    });
+  }
+
+  void _startSelection(String id) {
+    if (_selectionMode) {
+      _toggleSelection(id);
+    } else {
+      setState(() => _selected.add(id));
+    }
+  }
+
+  void _selectAllVisible() {
+    if (_latest.isEmpty) return;
+    setState(() {
+      if (_selected.length == _latest.length) {
+        _selected.clear();
+      } else {
+        _selected
+          ..clear()
+          ..addAll(_latest.map((n) => n.id));
+      }
+    });
+  }
+
+  Future<void> _deleteSelected() async {
+    if (_selected.isEmpty) return;
+    final count = _selected.length;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Delete notes?'),
+        content: Text(
+          'You are about to delete $count note${count == 1 ? '' : 's'}. This cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    ) ?? false;
+
+    if (!ok) return;
+
+    final ids = _selected.toList();
+    _clearSelection();
+    for (final id in ids) {
+      try {
+        await _svc.delete(id);
+      } catch (_) {}
+    }
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Deleted $count note${count == 1 ? '' : 's'}')),
+    );
+  }
+
+  // Intercept Android back: exit selection mode first
+  Future<bool> _onWillPop() async {
+    if (_selectionMode) {
+      _clearSelection();
+      return false;
+    }
+    return true;
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: _brand,
-        foregroundColor: _onBrand,
-        onPressed: () => Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const NoteEditorPage()),
+    final bg = const Color(0xFFF7F8FB);
+
+    return WillPopScope(
+      onWillPop: _onWillPop,
+      child: Scaffold(
+        backgroundColor: bg,
+        floatingActionButton: _selectionMode
+            ? null
+            : FloatingActionButton.extended(
+          backgroundColor: _brand,
+          foregroundColor: _onBrand,
+          icon: const Icon(Icons.add),
+          label: const Text('New note'),
+          onPressed: () => Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const NoteEditorPage()),
+          ),
         ),
-        child: const Icon(Icons.add),
-      ),
-      body: StreamBuilder<List<NoteModel>>(
-        initialData: _cache, // show previous results while the new query loads
-        stream: _svc.streamNotes(newestFirst: _newestFirst),
-        builder: (context, snap) {
-          // Header builder (service-history look)
-          Widget headerBox(int noteCount) {
-            return Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.grey[50],
-                border: Border(
-                  bottom: BorderSide(color: Colors.grey[300]!),
-                ),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.sticky_note_2, color: Colors.indigo, size: 24),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+        body: StreamBuilder<List<NoteModel>>(
+          initialData: _cache,
+          stream: _svc.streamNotes(newestFirst: _newestFirst),
+          builder: (context, snap) {
+            // ---------- OLD HEADER (restored) ----------
+            Widget headerBox(int noteCount) {
+              final topInset = MediaQuery.of(context).padding.top; // status-bar height
+              final headerBg = Colors.grey[50]!;
+              return ColoredBox(
+                color: headerBg, // paint behind status bar
+                child: Padding(
+                  padding: EdgeInsets.only(top: topInset),
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: headerBg,
+                      border: Border(
+                        bottom: BorderSide(color: Colors.grey[300]!),
+                      ),
+                    ),
+                    child: Row(
                       children: [
-                        const Text(
-                          'Notes',
-                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                        ),
+                        if (_selectionMode) ...[
+                          IconButton(
+                            icon: const Icon(Icons.close),
+                            onPressed: _clearSelection,
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                            tooltip: 'Cancel selection',
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            '${_selected.length} selected',
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const Spacer(),
+                          TextButton(
+                            onPressed: _selectAllVisible,
+                            child: Text(
+                              _selected.length == _latest.length && _latest.isNotEmpty
+                                  ? 'Clear'
+                                  : 'Select all',
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          IconButton(
+                            icon: const Icon(Icons.delete),
+                            color: Colors.red,
+                            onPressed: _deleteSelected,
+                            tooltip: 'Delete selected',
+                          ),
+                        ] else ...[
+                          const Icon(Icons.sticky_note_2, color: _brand, size: 24),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Notes',
+                                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                                ),
+                                Text(
+                                  '$noteCount note${noteCount == 1 ? '' : 's'}',
+                                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: _newestFirst ? 'Sort oldest' : 'Sort newest',
+                            icon: const Icon(Icons.swap_vert),
+                            onPressed: () => setState(() => _newestFirst = !_newestFirst),
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }
+            // ------------------------------------------
+
+            // ---- Error first
+            if (snap.hasError) {
+              return CustomScrollView(
+                slivers: [
+                  SliverToBoxAdapter(child: headerBox(_cache?.length ?? 0)),
+                  const SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: Center(child: Text('Error loading notes')),
+                  ),
+                ],
+              );
+            }
+
+            // ---- Initial loading (no data yet)
+            if (!snap.hasData) {
+              return CustomScrollView(
+                slivers: [
+                  SliverToBoxAdapter(child: headerBox(0)),
+                  const SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: Center(child: CircularProgressIndicator()),
+                  ),
+                ],
+              );
+            }
+
+            final notes = snap.data!;
+            _cache = notes;
+            _latest = notes;
+
+            // ---- Empty state
+            if (notes.isEmpty) {
+              return CustomScrollView(
+                slivers: [
+                  SliverToBoxAdapter(child: headerBox(0)),
+                  SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.sticky_note_2_outlined, size: 64, color: Colors.grey[400]),
+                        const SizedBox(height: 12),
                         Text(
-                          '$noteCount note${noteCount == 1 ? '' : 's'}',
-                          style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                          'No notes yet',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.grey[700],
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Tap “New note” to add your first one.',
+                          style: TextStyle(fontSize: 13, color: Colors.grey[600]),
                         ),
                       ],
                     ),
                   ),
-                  IconButton(
-                    tooltip: _newestFirst ? 'Sort oldest' : 'Sort newest',
-                    icon: const Icon(Icons.swap_vert),
-                    onPressed: () => setState(() => _newestFirst = !_newestFirst),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(), // compact like service_history
-                  ),
                 ],
-              ),
-            );
-          }
+              );
+            }
 
-          // IMPORTANT: check errors first, otherwise you can get stuck on a spinner
-          if (snap.hasError) {
+            // ---- Data
             return CustomScrollView(
               slivers: [
-                SliverToBoxAdapter(child: headerBox(_cache?.length ?? 0)),
-                SliverFillRemaining(
-                  hasScrollBody: false,
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Text('Error loading notes:\n${snap.error}'),
-                  ),
-                ),
-              ],
-            );
-          }
+                SliverToBoxAdapter(child: headerBox(notes.length)),
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 96),
+                  sliver: SliverList(
+                    delegate: SliverChildBuilderDelegate(
+                          (context, i) {
+                        final n = notes[i];
+                        final first = n.imagesB64.isNotEmpty ? n.imagesB64.first : null;
+                        final selected = _selected.contains(n.id);
 
-          // Loading (no data at all)
-          if (!snap.hasData) {
-            return CustomScrollView(
-              slivers: const [
-                // show empty header while loading first time
-                SliverToBoxAdapter(child: SizedBox(height: 0)),
-                SliverFillRemaining(
-                  hasScrollBody: false,
-                  child: Center(child: CircularProgressIndicator()),
-                ),
-              ],
-            );
-          }
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: Stack(
+                            children: [
+                              // FIXED-HEIGHT ROW
+                              SizedBox(
+                                height: kRowHeight,
+                                child: Card(
+                                  elevation: 0.8,
+                                  shadowColor: Colors.black12,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                    side: BorderSide(
+                                      color: selected ? _brand.withOpacity(0.6) : Colors.grey.shade200,
+                                    ),
+                                  ),
+                                  color: selected ? _brand.withOpacity(0.035) : Colors.white,
+                                  child: InkWell(
+                                    borderRadius: BorderRadius.circular(14),
+                                    onLongPress: () => _startSelection(n.id),
+                                    onTap: () {
+                                      if (_selectionMode) {
+                                        _toggleSelection(n.id);
+                                      } else {
+                                        Navigator.of(context).push(
+                                          MaterialPageRoute(builder: (_) => NoteViewPage(noteId: n.id)),
+                                        );
+                                      }
+                                    },
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                                      child: Row(
+                                        crossAxisAlignment: CrossAxisAlignment.center,
+                                        children: [
+                                          // leading thumbnail (fixed size)
+                                          ClipRRect(
+                                            borderRadius: BorderRadius.circular(10),
+                                            child: first == null
+                                                ? SizedBox(width: 56, height: 56, child: placeholderThumb())
+                                                : smartThumb(first, w: 56, h: 56, fit: BoxFit.cover),
+                                          ),
+                                          const SizedBox(width: 12),
 
-          final notes = snap.data!;
-          // update cache (no setState needed)
-          _cache = notes;
+                                          // TEXT BLOCK (replaces the mistaken title:/subtitle: usage)
+                                          Expanded(
+                                            child: Column(
+                                              mainAxisAlignment: MainAxisAlignment.center,
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                // Title line
+                                                Text(
+                                                  n.title.isEmpty ? '(Untitled)' : n.title,
+                                                  maxLines: 1,
+                                                  overflow: TextOverflow.ellipsis,
+                                                  style: const TextStyle(fontWeight: FontWeight.w600),
+                                                ),
+                                                const SizedBox(height: 6),
 
-          if (notes.isEmpty) {
-            return CustomScrollView(
-              slivers: [
-                SliverToBoxAdapter(child: headerBox(0)),
-                const SliverFillRemaining(
-                  hasScrollBody: false,
-                  child: Center(child: Text('No notes yet. Tap + to add.')),
-                ),
-              ],
-            );
-          }
+                                                // Second line: preview + footer in one vertical group
+                                                Row(
+                                                  children: [
+                                                    Expanded(
+                                                      child: Text(
+                                                        n.text.isEmpty ? '(No text)' : n.text,
+                                                        maxLines: 1,
+                                                        overflow: TextOverflow.ellipsis,
+                                                        style: const TextStyle(height: 1.2),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                                const SizedBox(height: 8),
 
-          return CustomScrollView(
-            slivers: [
-              SliverToBoxAdapter(child: headerBox(notes.length)),
-              SliverPadding(
-                padding: const EdgeInsets.fromLTRB(12, 12, 12, 80),
-                sliver: SliverList(
-                  delegate: SliverChildBuilderDelegate(
-                        (context, i) {
-                      final n = notes[i];
-                      final first = n.imagesB64.isNotEmpty ? n.imagesB64.first : null;
-
-                      return Column(
-                        children: [
-                          Dismissible(
-                            key: ValueKey(n.id),
-                            background: _delBg(true),
-                            secondaryBackground: _delBg(false),
-                            onDismissed: (_) => _svc.delete(n.id),
-                            child: ListTile(
-                              onTap: () => Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (_) => NoteViewPage(noteId: n.id),
+                                                Row(
+                                                  children: [
+                                                    if (n.jobId.isNotEmpty)
+                                                      Container(
+                                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                                        decoration: BoxDecoration(
+                                                          borderRadius: BorderRadius.circular(8),
+                                                          color: Colors.indigo.withOpacity(0.07),
+                                                        ),
+                                                        child: Row(
+                                                          mainAxisSize: MainAxisSize.min,
+                                                          children: const [
+                                                            Icon(Icons.confirmation_number_outlined, size: 14, color: Colors.indigo),
+                                                            SizedBox(width: 4),
+                                                          ],
+                                                        ),
+                                                      ),
+                                                    if (n.jobId.isNotEmpty)
+                                                      Text(
+                                                        n.jobId,
+                                                        style: const TextStyle(
+                                                          fontSize: 12,
+                                                          color: Colors.indigo,
+                                                          fontWeight: FontWeight.w600,
+                                                        ),
+                                                      ),
+                                                    const Spacer(),
+                                                    Text(
+                                                      _fmt(n.createdAt),
+                                                      style: const TextStyle(color: Colors.grey, fontSize: 12),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
                                 ),
                               ),
-                              leading: ClipRRect(
-                                borderRadius: BorderRadius.circular(8),
-                                child: first == null
-                                    ? placeholderThumb()
-                                    : smartThumb(first, w: 56, h: 56, fit: BoxFit.cover),
-                              ),
-                              title: Text(
-                                n.jobId.isEmpty ? 'Job ID' : n.jobId,
-                                style: const TextStyle(fontWeight: FontWeight.w600),
-                              ),
-                              subtitle: Text(
-                                n.text.isEmpty ? '(No text)' : n.text,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              trailing: Text(
-                                _fmt(n.createdAt),
-                                style: const TextStyle(color: Colors.grey),
-                              ),
-                            ),
+
+                              // selection check overlay (kept)
+                              if (_selectionMode)
+                                Positioned(
+                                  top: 8,
+                                  right: 8,
+                                  child: AnimatedScale(
+                                    scale: selected ? 1.0 : 0.0,
+                                    duration: const Duration(milliseconds: 140),
+                                    child: Container(
+                                      decoration: const BoxDecoration(shape: BoxShape.circle, color: Colors.white),
+                                      child: const Icon(Icons.check_circle, color: _brand),
+                                    ),
+                                  ),
+                                ),
+                            ],
                           ),
-                          const SizedBox(height: 8),
-                        ],
-                      );
-                    },
-                    childCount: notes.length,
+                        );
+                      },
+                      childCount: notes.length,
+                    ),
                   ),
                 ),
-              ),
-            ],
-          );
-        },
+              ],
+            );
+          },
+        ),
       ),
     );
   }
-
-  Widget _delBg(bool left) => Container(
-    color: Colors.red,
-    alignment: left ? Alignment.centerLeft : Alignment.centerRight,
-    padding: EdgeInsets.only(left: left ? 16 : 0, right: left ? 0 : 16),
-    child: const Icon(Icons.delete, color: Colors.white),
-  );
 }

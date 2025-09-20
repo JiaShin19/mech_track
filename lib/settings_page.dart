@@ -90,13 +90,25 @@ class SettingsPage extends StatelessWidget {
           return ListView(
             children: [
               const _SectionHeader('Account'),
-              ListTile(
-                leading: const Icon(Icons.person),
-                title: Text(user.displayName ?? 'Unnamed user'),
-                subtitle: Text(user.email ?? ''),
+              StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                stream: FirebaseFirestore.instance
+                    .collection('users')
+                    .doc(user.uid)
+                    .snapshots(),
+                builder: (context, snap) {
+                  final data = snap.data?.data();
+                  final name = data?['name'] ?? 'Unnamed user'; // fallback if still empty
+                  final email = user.email ?? '';
+
+                  return ListTile(
+                    leading: const Icon(Icons.person),
+                    title: Text(name),
+                    subtitle: Text(email),
+                  );
+                },
               ),
               ListTile(
-                leading: const Icon(Icons.password),
+                leading: const Icon(Icons.lock_reset),
                 title: const Text('Change Password'),
                 onTap: () => Navigator.of(context).push(
                   MaterialPageRoute(builder: (_) => const ChangePasswordPage()),

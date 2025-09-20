@@ -460,6 +460,7 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
   final _picker = ImagePicker();
 
   final _formKey = GlobalKey<FormState>();
+  final _title = TextEditingController();
   final _text = TextEditingController();
   String? _selectedJobId;
 
@@ -482,6 +483,7 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
     if (n == null) return;
     setState(() {
       _selectedJobId = n.jobId.isEmpty ? null : n.jobId;
+      _title.text = n.title;
       _text.text = n.text;
       _remoteB64.clear();
       _remoteB64.addAll(n.imagesB64);
@@ -541,6 +543,7 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
         id: id,
         userId: FirebaseAuth.instance.currentUser!.uid,
         jobId: _selectedJobId ?? '',
+        title: _title.text.trim(),
         text: _text.text.trim(),
         imagesB64: [..._remoteB64, ...newB64],
       );
@@ -559,6 +562,13 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
   }
 
   int get _imageCount => _remoteB64.length + _localFiles.length;
+
+  @override
+  void dispose() {
+    _title.dispose();
+    _text.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -616,7 +626,8 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
               title: Row(
                 children: [
                   const SizedBox(width: 8),
-                  const Icon(Icons.note_alt, color: Colors.indigo, size: 22),
+                  const Icon(Icons.note_alt, color: Color(0xFF2B384C), size: 22),
+                  const SizedBox(width: 12),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
@@ -741,6 +752,17 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
                       local: _localFiles,
                       onRemoveRemote: (i) => setState(() => _remoteB64.removeAt(i)),
                       onRemoveLocal: (i) => setState(() => _localFiles.removeAt(i)),
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _title,
+                      textInputAction: TextInputAction.next,
+                      maxLength: 80, // optional
+                      decoration: const InputDecoration(
+                        labelText: 'Title',
+                        hintText: 'Enter a short title',
+                        border: OutlineInputBorder(),
+                      ),
                     ),
                     const SizedBox(height: 12),
                     TextField(
