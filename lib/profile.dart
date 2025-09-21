@@ -200,18 +200,6 @@ class ProfilePage extends StatelessWidget {
                           ListTile(
                             leading: const Icon(Icons.person),
                             title: Text(name.isEmpty ? 'Unnamed' : name),
-                            trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => UpdateProfilePage(
-                                    fieldName: 'Name',
-                                    currentValue: name,
-                                  ),
-                                ),
-                              );
-                            },
                           ),
 
                           // Email (readonly – from FirebaseAuth)

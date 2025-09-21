@@ -329,12 +329,18 @@ class NotesService {
 
   /// All notes for current user
   Stream<List<NoteModel>> streamNotes({bool newestFirst = true}) {
+    FirebaseFirestore.instance
+        .collection('notes')
+        .where('userId', isEqualTo: FirebaseAuth.instance.currentUser!.uid)
+        .snapshots();
+
     return _notes
         .where('userId', isEqualTo: _uid)
         .orderBy('createdAt', descending: newestFirst)
         .snapshots()
         .map((q) => q.docs.map(NoteModel.fromDoc).toList());
   }
+
 
   /// Filtered notes (jobId / date range / hasImages), only for current user
   Stream<List<NoteModel>> streamNotesFiltered({
@@ -412,26 +418,51 @@ class NotesService {
   //     await ref.set(data, SetOptions(merge: true));
   // }
 
+  // Future<void> upsert(NoteModel m) async {
+  //   final ref = _notes.doc(m.id.isEmpty ? _notes.doc().id : m.id);
+  //   final snap = await ref.get();
+  //
+  //   // Build the write payload from your model
+  //   final data = m.toMap()
+  //     ..['id'] = ref.id
+  //     ..['userId'] = _uid;
+  //
+  //   // Compute hasImages from the map (supports either 'images' or 'imagesB64')
+  //   final hasImages =
+  //       ((data['images'] as List?)?.isNotEmpty ?? false) ||
+  //           ((data['imagesB64'] as List?)?.isNotEmpty ?? false);
+  //   data['hasImages'] = hasImages;
+  //
+  //   if (!snap.exists) {
+  //     data['createdAt'] = FieldValue.serverTimestamp(); // set once on create
+  //     await ref.set(data);
+  //   } else {
+  //     // Don't overwrite createdAt on update
+  //     data.remove('createdAt');
+  //     await ref.set(data, SetOptions(merge: true));
+  //   }
+  // }
+
   Future<void> upsert(NoteModel m) async {
     final ref = _notes.doc(m.id.isEmpty ? _notes.doc().id : m.id);
     final snap = await ref.get();
 
-    // Build the write payload from your model
     final data = m.toMap()
-      ..['id'] = ref.id
-      ..['userId'] = _uid;
+      ..['id'] = ref.id;
 
-    // Compute hasImages from the map (supports either 'images' or 'imagesB64')
     final hasImages =
         ((data['images'] as List?)?.isNotEmpty ?? false) ||
             ((data['imagesB64'] as List?)?.isNotEmpty ?? false);
     data['hasImages'] = hasImages;
 
     if (!snap.exists) {
-      data['createdAt'] = FieldValue.serverTimestamp(); // set once on create
+      // CREATE → set userId + createdAt
+      data['userId'] = _uid;
+      data['createdAt'] = FieldValue.serverTimestamp();
       await ref.set(data);
     } else {
-      // Don't overwrite createdAt on update
+      // UPDATE → don’t touch userId or createdAt
+      data.remove('userId');
       data.remove('createdAt');
       await ref.set(data, SetOptions(merge: true));
     }

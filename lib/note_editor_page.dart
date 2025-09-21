@@ -491,9 +491,27 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
   }
 
   // Jobs dropdown (from /jobs)
+  // Stream<List<_Job>> _jobOptions() {
+  //   return FirebaseFirestore.instance
+  //       .collection('jobs')
+  //       .orderBy('id')
+  //       .snapshots()
+  //       .map((s) => s.docs.map((d) {
+  //     final m = d.data();
+  //     final id = (m['id'] as String?) ?? d.id;
+  //     final c = (m['customerName'] as String?) ?? '';
+  //     final st = (m['status'] as String?) ?? '';
+  //     return _Job(id, [id, if (c.isNotEmpty) '• $c', if (st.isNotEmpty) '• $st'].join(' '));
+  //   }).toList());
+  // }
   Stream<List<_Job>> _jobOptions() {
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user == null) return const Stream.empty();
+
     return FirebaseFirestore.instance
         .collection('jobs')
+        .where('assignedToEmail', isEqualTo: user.email) // ✅ only this user's jobs
         .orderBy('id')
         .snapshots()
         .map((s) => s.docs.map((d) {
@@ -501,7 +519,10 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
       final id = (m['id'] as String?) ?? d.id;
       final c = (m['customerName'] as String?) ?? '';
       final st = (m['status'] as String?) ?? '';
-      return _Job(id, [id, if (c.isNotEmpty) '• $c', if (st.isNotEmpty) '• $st'].join(' '));
+      return _Job(
+        id,
+        [id, if (c.isNotEmpty) '• $c', if (st.isNotEmpty) '• $st'].join(' '),
+      );
     }).toList());
   }
 
@@ -520,8 +541,7 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
     if (_saving) return;
 
     // validate required fields
-    if (!_formKey.currentState!.validate()) {            // ← add
-      // show a quick nudge if you want
+    if (_selectedJobId == null || _selectedJobId!.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please select a Job.')),
       );
@@ -531,6 +551,30 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
     setState(() => _saving = true);
     try {
       final id = widget.noteId ?? DateTime.now().millisecondsSinceEpoch.toString();
+      final currentUser = FirebaseAuth.instance.currentUser;
+      final userEmail = currentUser?.email?.toLowerCase();
+
+      // ✅ Fetch the selected job from Firestore
+      final jobDoc = await FirebaseFirestore.instance
+          .collection('jobs')
+          .doc(_selectedJobId)
+          .get();
+
+      if (!jobDoc.exists) {
+        throw 'Selected job not found in Firestore';
+      }
+
+      final jobData = jobDoc.data()!;
+      final jobAssignedEmail = (jobData['assignedToEmail'] as String?)?.toLowerCase();
+
+      // ✅ Check if job belongs to this user
+      if (jobAssignedEmail != userEmail) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('You are not assigned to this job.')),
+        );
+        setState(() => _saving = false);
+        return;
+      }
 
       // convert local files → Base64 data URIs
       final newB64 = <String>[];
@@ -541,13 +585,14 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
 
       final model = NoteModel(
         id: id,
-        userId: FirebaseAuth.instance.currentUser!.uid,
-        jobId: _selectedJobId ?? '',
+        userId: currentUser!.uid,
+        jobId: _selectedJobId!,
         title: _title.text.trim(),
         text: _text.text.trim(),
         imagesB64: [..._remoteB64, ...newB64],
       );
 
+      print(model.toMap());
       await _svc.upsert(model);
       if (!mounted) return;
       Navigator.pop(context);

@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 class Customer {
   final String name;
   final String phone;
@@ -137,7 +139,7 @@ class Job {
     date = DateTime.tryParse(createdDate) ?? DateTime.now();
   }
 
-  factory Job.fromMap(Map<String, dynamic> map) {
+  factory Job.fromMap(Map<String, dynamic> map, String id) {
     final customerMap = (map['customer'] ?? {}) as Map<String, dynamic>;
     final vehicleMap = (map['vehicle'] ?? {}) as Map<String, dynamic>;
     final partsMap = (map['parts'] ?? {}) as Map<String, dynamic>;

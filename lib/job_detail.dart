@@ -1,4 +1,7 @@
 // job_detail.dart
+import 'dart:convert';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -359,38 +362,7 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
                 ],
               ),
             ),
-            TimeTrackingPanel(
-              jobId: job.id,
-              mechanicId: mechanicId,
-              margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-              showStatus: true,
-            ),
 
-            // ---------- Digital Sign-Off Button (NEW) ----------
-            if (job.status == "Completed")
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                child: ElevatedButton.icon(
-                  icon: const Icon(Icons.check_circle_outline),
-                  label: const Text("Sign Off"),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.indigo,
-                    foregroundColor: Colors.white,
-                    minimumSize: const Size.fromHeight(44),
-                  ),
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => DigitalSignoffScreen(
-                          jobId: job.id,
-                          mechanicId: mechanicId,
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
             // ---------- Body ----------
             Expanded(
               child: ListView(
@@ -460,6 +432,114 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
                     ),
                   ),
 
+                  TimeTrackingPanel(
+                    jobId: job.id,
+                    mechanicId: mechanicId,
+                    margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 0),
+                    showStatus: true,
+                  ),
+
+                  if (job.status == "Completed")
+                    StreamBuilder<DocumentSnapshot>(
+                      stream: FirebaseFirestore.instance
+                          .collection("jobs")
+                          .doc(job.id)
+                          .snapshots(),
+                      builder: (context, snap) {
+                        if (!snap.hasData) return const SizedBox.shrink();
+                        final data = snap.data!.data() as Map<String, dynamic>? ?? {};
+                        final sig = data["signatureB64"] as String?;
+
+                        if (sig != null && sig.isNotEmpty) {
+                          return Card(
+                            margin: const EdgeInsets.symmetric(vertical: 8),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            elevation: 3,
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: const [
+                                      Icon(Icons.edit_document, color: Colors.indigo),
+                                      SizedBox(width: 8),
+                                      Text(
+                                        "Digital Sign-Off",
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 16,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Center(
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: Image.memory(
+                                        base64Decode(sig.split(",").last),
+                                        height: 120,
+                                        fit: BoxFit.contain,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                    decoration: BoxDecoration(
+                                      color: Colors.green.shade50,
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Row(
+                                      children: const [
+                                        Icon(Icons.verified, color: Colors.green),
+                                        SizedBox(width: 6),
+                                        Text(
+                                          "Signed Off",
+                                          style: TextStyle(
+                                            color: Colors.green,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        } else {
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            child: ElevatedButton.icon(
+                              icon: const Icon(Icons.check_circle_outline),
+                              label: const Text("Sign Off"),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.indigo,
+                                foregroundColor: Colors.white,
+                                minimumSize: const Size.fromHeight(44),
+                              ),
+                              onPressed: () async {
+                                final ok = await Navigator.push<bool>(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => DigitalSignoffScreen(
+                                      jobId: job.id,
+                                      mechanicId: mechanicId,
+                                    ),
+                                  ),
+                                );
+                                if (ok == true) setState(() {});
+                              },
+                            ),
+                          );
+                        }
+                      },
+                    ),
+
                   // ---------- NEW: Job Notes (only when any exist) ----------
                   _notesSection(),
 
@@ -488,6 +568,144 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
       // ),
     );
   }
+
+  // @override
+  // Widget build(BuildContext context) {
+  //   final mechanicId = FirebaseAuth.instance.currentUser?.uid ?? '';
+  //
+  //   return Scaffold(
+  //     appBar: AppBar(
+  //       backgroundColor: Colors.white,
+  //       elevation: 0,
+  //       leading: IconButton(
+  //         icon: const Icon(Icons.arrow_back),
+  //         onPressed: () => Navigator.pop(context),
+  //       ),
+  //     ),
+  //     body: SafeArea(
+  //       child: StreamBuilder<DocumentSnapshot>(
+  //         stream: FirebaseFirestore.instance
+  //             .collection("jobs")
+  //             .doc(job.id)
+  //             .snapshots(),
+  //         builder: (context, snapshot) {
+  //           if (!snapshot.hasData) {
+  //             return const Center(child: CircularProgressIndicator());
+  //           }
+  //
+  //           final data = snapshot.data!.data() as Map<String, dynamic>? ?? {};
+  //           final current = Job.fromMap(data, snapshot.data!.id);
+  //
+  //           return Column(
+  //             children: [
+  //               // ---------- Header ----------
+  //               Container(
+  //                 width: double.infinity,
+  //                 margin: const EdgeInsets.all(16),
+  //                 padding: const EdgeInsets.all(16),
+  //                 decoration: BoxDecoration(
+  //                   color: Colors.grey[100],
+  //                   borderRadius: BorderRadius.circular(12),
+  //                   border: Border.all(color: Colors.grey[300]!),
+  //                 ),
+  //                 child: Column(
+  //                   crossAxisAlignment: CrossAxisAlignment.start,
+  //                   children: [
+  //                     Row(
+  //                       children: [
+  //                         Text(
+  //                           current.id,
+  //                           style: const TextStyle(
+  //                             fontSize: 18,
+  //                             fontWeight: FontWeight.bold,
+  //                           ),
+  //                         ),
+  //                         const Spacer(),
+  //                         if (current.status == 'Assigned')
+  //                           const Icon(Icons.assignment, color: Colors.grey, size: 20),
+  //                       ],
+  //                     ),
+  //                     const SizedBox(height: 8),
+  //                     Container(
+  //                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+  //                       decoration: BoxDecoration(
+  //                         color: _getStatusColor(current.status),
+  //                         borderRadius: BorderRadius.circular(12),
+  //                       ),
+  //                       child: Text(
+  //                         current.status,
+  //                         style: const TextStyle(
+  //                           color: Colors.white,
+  //                           fontSize: 12,
+  //                           fontWeight: FontWeight.bold,
+  //                         ),
+  //                       ),
+  //                     ),
+  //                     const SizedBox(height: 12),
+  //                     Row(
+  //                       children: [
+  //                         Expanded(
+  //                           child: Column(
+  //                             crossAxisAlignment: CrossAxisAlignment.start,
+  //                             children: [
+  //                               Text("Assigned to:",
+  //                                   style: TextStyle(color: Colors.grey[600], fontSize: 12)),
+  //                               Text(current.assignedTo,
+  //                                   style: const TextStyle(
+  //                                       fontWeight: FontWeight.w500, fontSize: 14)),
+  //                             ],
+  //                           ),
+  //                         ),
+  //                         Expanded(
+  //                           child: Column(
+  //                             crossAxisAlignment: CrossAxisAlignment.start,
+  //                             children: [
+  //                               Text("Created:",
+  //                                   style: TextStyle(color: Colors.grey[600], fontSize: 12)),
+  //                               Text(current.createdDate,
+  //                                   style: const TextStyle(
+  //                                       fontWeight: FontWeight.w500, fontSize: 14)),
+  //                             ],
+  //                           ),
+  //                         ),
+  //                       ],
+  //                     ),
+  //                     const SizedBox(height: 8),
+  //                     Text("Total Time Spent:",
+  //                         style: TextStyle(color: Colors.grey[600], fontSize: 12)),
+  //                     Text(current.totalTimeSpent,
+  //                         style: const TextStyle(
+  //                             fontWeight: FontWeight.w500, fontSize: 14)),
+  //                   ],
+  //                 ),
+  //               ),
+  //
+  //               // ---------- Body ----------
+  //               Expanded(
+  //                 child: ListView(
+  //                   padding: const EdgeInsets.symmetric(horizontal: 16),
+  //                   children: [
+  //                     // your existing cards...
+  //
+  //                     TimeTrackingPanel(
+  //                       jobId: current.id,
+  //                       mechanicId: mechanicId,
+  //                       margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 0),
+  //                       showStatus: true,
+  //                     ),
+  //
+  //                     // digital sign-off, notes etc...
+  //                   ],
+  //                 ),
+  //               ),
+  //             ],
+  //           );
+  //         },
+  //       ),
+  //     ),
+  //   );
+  // }
+
 }
 
 /*
