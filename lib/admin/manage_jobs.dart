@@ -52,10 +52,11 @@ class _ManageJobsPageState extends State<ManageJobsPage> {
     List<Map<String, dynamic>> staffList = staffSnap.docs.map((doc) => {...doc.data() as Map<String, dynamic>, 'id': doc.id}).toList();
     List<Map<String, dynamic>> customerList = customerSnap.docs.map((doc) => {...doc.data() as Map<String, dynamic>, 'id': doc.id}).toList();
     List<Map<String, dynamic>> vehicleList = [];
+    Map<String, dynamic>? selectedVehicle = job?["vehicle"];
 
     String selectedStaffEmail = job?["assignedToEmail"] ?? "";
     String selectedCustomerEmail = job?["customer"]?["email"] ?? "";
-    String? selectedVehicleId;
+    String? selectedVehicleId = selectedVehicle?["id"];
 
     Map<String, dynamic>? selectedCustomer =
     customerList.firstWhere(
@@ -85,7 +86,7 @@ class _ManageJobsPageState extends State<ManageJobsPage> {
     // if editing an existing job, preload vehicles
     if (selectedCustomer != null && selectedCustomer!.isNotEmpty) {
       await loadVehicles(selectedCustomer!["id"]);
-      selectedVehicleId = job?["vehicleId"];
+      selectedVehicleId = selectedVehicle?["id"]; // preload from saved vehicle if editing
     }
 
     // For adding new part
@@ -178,10 +179,18 @@ class _ManageJobsPageState extends State<ManageJobsPage> {
                     items: vehicleList.map<DropdownMenuItem<String>>((v) {
                       return DropdownMenuItem<String>(
                         value: v["id"],
-                        child: Text("${v["model"]} (${v["licensePlate"]})"),
+                        child: Text("${v["licensePlate"]} - ${v["model"]} (${v["year"]})"),
                       );
                     }).toList(),
-                    onChanged: (value) => setDialogState(() => selectedVehicleId = value),
+                    onChanged: (value) {
+                      setDialogState(() {
+                        selectedVehicleId = value;
+                        selectedVehicle = vehicleList.firstWhere(
+                              (v) => v["id"] == value,
+                          orElse: () => {},
+                        );
+                      });
+                    },
                     decoration: const InputDecoration(labelText: "Assign Vehicle"),
                   ),
                   const SizedBox(height: 8),
@@ -386,6 +395,7 @@ class _ManageJobsPageState extends State<ManageJobsPage> {
                 foregroundColor: Colors.white,
               ),
               onPressed: () async {
+                final enteredId = jobIdController.text.trim();
                 // Validation
                 bool hasError = false;
                 fieldErrors.updateAll((key, value) => null);
@@ -418,9 +428,10 @@ class _ManageJobsPageState extends State<ManageJobsPage> {
                       content: Text("Please select a customer")));
                   return;
                 }
-                if (selectedVehicleId == null || selectedVehicleId!.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                      content: Text("Please select a vehicle")));
+                if (selectedVehicle == null || selectedVehicle!.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text("Please select a vehicle")),
+                  );
                   return;
                 }
 
@@ -429,7 +440,7 @@ class _ManageJobsPageState extends State<ManageJobsPage> {
                     part["name"] ?? "Unnamed": part
                 };
                 final newJob = {
-                  "id": jobIdController.text.trim(),
+                  "id": enteredId,
                   "assignedToEmail": selectedStaffEmail,
                   "createdDate": dateController.text.trim(),
                   "jobDescription": descController.text.trim(),
@@ -438,10 +449,36 @@ class _ManageJobsPageState extends State<ManageJobsPage> {
                   "parts": partsMap,
                   "customer": selectedCustomer ?? {},
                   "customerName": selectedCustomer?["name"] ?? "",
-                  "vehicleId": selectedVehicleId ?? "",
+                  "vehicle": selectedVehicle ?? {},
+                  "running": false,
+                  "startedAt": null,
                   "aggregatedDurationSeconds": 0,
                   "totalTimeSpent": null,
+                  "totalTimeSpentDisplay": null,
                 };
+
+                if (job == null) {
+                  // Use entered ID as the Firestore document ID
+                  await jobsRef.doc(enteredId).set(newJob);
+                  if (mounted) Navigator.pop(context);
+                  Future.delayed(const Duration(milliseconds: 150), () {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text("Job assigned successfully!")),
+                      );
+                    }
+                  });
+                } else {
+                  await jobsRef.doc(docId!).update(newJob);
+                  if (mounted) Navigator.pop(context);
+                  Future.delayed(const Duration(milliseconds: 150), () {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text("Job updated successfully!")),
+                      );
+                    }
+                  });
+                }
                 if (job == null) {
                   await jobsRef.add(newJob);
                   if (mounted) Navigator.pop(context);
@@ -463,8 +500,7 @@ class _ManageJobsPageState extends State<ManageJobsPage> {
                     }
                   });
                 }
-              },
-              child: const Text("Save"),
+              },              child: const Text("Save"),
             ),
           ],
         ),

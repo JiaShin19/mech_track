@@ -56,7 +56,8 @@ class Vehicle {
   factory Vehicle.fromMap(Map<String, dynamic> map) {
     return Vehicle(
       model: map['model'] ?? '',
-      year: map['year'] ?? '',
+      // year: map['year'] ?? '',
+      year: map['year']?.toString() ?? '', // ✅ safe: handles int or string
       color: map['color'] ?? '',
       licensePlate: map['licensePlate'] ?? '',
       currentMileage: map['currentMileage'] ?? '',
