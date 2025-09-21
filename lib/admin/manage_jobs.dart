@@ -51,19 +51,42 @@ class _ManageJobsPageState extends State<ManageJobsPage> {
 
     List<Map<String, dynamic>> staffList = staffSnap.docs.map((doc) => {...doc.data() as Map<String, dynamic>, 'id': doc.id}).toList();
     List<Map<String, dynamic>> customerList = customerSnap.docs.map((doc) => {...doc.data() as Map<String, dynamic>, 'id': doc.id}).toList();
+    List<Map<String, dynamic>> vehicleList = [];
 
     String selectedStaffEmail = job?["assignedToEmail"] ?? "";
     String selectedCustomerEmail = job?["customer"]?["email"] ?? "";
-    Map<String, dynamic>? selectedCustomer = customerList.firstWhere(
+    String? selectedVehicleId;
+
+    Map<String, dynamic>? selectedCustomer =
+    customerList.firstWhere(
           (c) => c["email"] == selectedCustomerEmail,
-      orElse: () => customerList.isNotEmpty ? customerList.first : {},
+      orElse: () => {},
     );
+
+    if (selectedCustomer.isEmpty) {
+      selectedCustomer = null; // explicitly null if not found
+    }
     final jobIdController = TextEditingController(text: job?["id"] ?? "");
     final descController = TextEditingController(text: job?["jobDescription"] ?? "");
     final dateController = TextEditingController(text: job?["createdDate"] ?? "");
     String status = job?["status"] ?? "Assigned";
     List<String> services = servicesToList(job?["services"]);
     List<Map<String, dynamic>> parts = partsToList(job?["parts"]);
+
+    // helper function to load vehicles dynamically
+    Future<void> loadVehicles(String customerId) async {
+      final vehicleSnap =
+      await customersRef.doc(customerId).collection("vehicle").get();
+      vehicleList = vehicleSnap.docs
+          .map((doc) => {...doc.data() as Map<String, dynamic>, 'id': doc.id})
+          .toList();
+    }
+
+    // if editing an existing job, preload vehicles
+    if (selectedCustomer != null && selectedCustomer!.isNotEmpty) {
+      await loadVehicles(selectedCustomer!["id"]);
+      selectedVehicleId = job?["vehicleId"];
+    }
 
     // For adding new part
     String newPartName = "";
@@ -117,26 +140,49 @@ class _ManageJobsPageState extends State<ManageJobsPage> {
                   ),
                   const SizedBox(height: 8),
                   DropdownButtonFormField<String>(
-                    value: selectedCustomerEmail.isNotEmpty ? selectedCustomerEmail : null,
+                    value: selectedCustomerEmail.isNotEmpty
+                        ? selectedCustomerEmail
+                        : null,
                     items: customerList.map<DropdownMenuItem<String>>((c) {
                       return DropdownMenuItem<String>(
                         value: c["email"],
                         child: Text(c["name"] ?? c["email"]),
                       );
                     }).toList(),
-                    onChanged: (value) {
+                    onChanged: (value) async {
                       setDialogState(() {
                         selectedCustomerEmail = value ?? "";
                         selectedCustomer = customerList.firstWhere(
                               (c) => c["email"] == selectedCustomerEmail,
                           orElse: () => {},
                         );
+                        selectedVehicleId = null; // reset vehicle
                       });
+
+                      // reload vehicles for the new customer
+                      if (selectedCustomer != null &&
+                          selectedCustomer!.isNotEmpty) {
+                        await loadVehicles(selectedCustomer!["id"]);
+                        setDialogState(() {});
+                      }
                     },
-                    decoration: InputDecoration(
-                      labelText: "Assign Customer (by Email)",
-                      errorText: fieldErrors['customer'],
-                    ),
+                    decoration: const InputDecoration(labelText: "Assign Customer"),
+                  ),
+                  const SizedBox(height: 8),
+
+                  // Vehicle dropdown – updates when customer changes
+                  DropdownButtonFormField<String>(
+                    value: vehicleList.any((v) => v["id"] == selectedVehicleId)
+                        ? selectedVehicleId
+                        : null, // fallback if mismatch
+                    items: vehicleList.map<DropdownMenuItem<String>>((v) {
+                      return DropdownMenuItem<String>(
+                        value: v["id"],
+                        child: Text("${v["model"]} (${v["licensePlate"]})"),
+                      );
+                    }).toList(),
+                    onChanged: (value) => setDialogState(() => selectedVehicleId = value),
+                    decoration: const InputDecoration(labelText: "Assign Vehicle"),
                   ),
                   const SizedBox(height: 8),
                   TextField(
@@ -367,6 +413,17 @@ class _ManageJobsPageState extends State<ManageJobsPage> {
 
                 if (hasError) return;
 
+                if (selectedCustomer == null || selectedCustomer!.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                      content: Text("Please select a customer")));
+                  return;
+                }
+                if (selectedVehicleId == null || selectedVehicleId!.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                      content: Text("Please select a vehicle")));
+                  return;
+                }
+
                 Map<String, dynamic> partsMap = {
                   for (var part in parts)
                     part["name"] ?? "Unnamed": part
@@ -381,6 +438,9 @@ class _ManageJobsPageState extends State<ManageJobsPage> {
                   "parts": partsMap,
                   "customer": selectedCustomer ?? {},
                   "customerName": selectedCustomer?["name"] ?? "",
+                  "vehicleId": selectedVehicleId ?? "",
+                  "aggregatedDurationSeconds": 0,
+                  "totalTimeSpent": null,
                 };
                 if (job == null) {
                   await jobsRef.add(newJob);
