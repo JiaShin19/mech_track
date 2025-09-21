@@ -133,14 +133,7 @@ class DashboardScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final jobs = DataService.currentJobs;
-    final assignedCount = jobs.where((j) => j.status == "Assigned").length;
-    final inProgressCount = jobs.where((j) => j.status == "In Progress").length;
-    final completedCount = jobs.where((j) => j.status == "Completed").length;
     final user = FirebaseAuth.instance.currentUser;
-
-    final name = user?.displayName?.trim().isNotEmpty == true ? user!.displayName! : 'User';
-    final email = user?.email ?? '';
 
     return Scaffold(
       appBar: AppBar(
@@ -148,182 +141,11 @@ class DashboardScreen extends StatelessWidget {
         backgroundColor: const Color(0xFF2B384C),
         foregroundColor: const Color(0xFFF0F4F3),
       ),
-      drawer: Builder(
-        builder: (context) {
-          final authUser = FirebaseAuth.instance.currentUser;
-          if (authUser == null) {
-            return const Drawer(
-              child: SafeArea(
-                child: ListTile(title: Text('Not signed in')),
-              ),
-            );
-          }
-
-          final docRef = FirebaseFirestore.instance.collection('users').doc(authUser.uid);
-
-          String _initial(String? s, String? fallback) {
-            final t = (s ?? '').trim();
-            if (t.isNotEmpty) return t.characters.first.toUpperCase();
-            final f = (fallback ?? '').trim();
-            return f.isNotEmpty ? f.characters.first.toUpperCase() : 'U';
-          }
-
-          return Drawer(
-            child: SafeArea(
-              child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-                stream: docRef.snapshots(),
-                builder: (context, snap) {
-                  final data = (snap.hasData && snap.data!.exists)
-                      ? (snap.data!.data() ?? {})
-                      : {};
-                  final name = (data['name'] as String?) ?? authUser.displayName ?? 'User';
-                  final imageB64 = (data['imageB64'] as String?) ?? '';
-
-                  // Prepare avatar (MemoryImage from base64) or letter fallback
-                  ImageProvider? avatarImage;
-                  if (imageB64.isNotEmpty) {
-                    try {
-                      avatarImage = MemoryImage(base64Decode(imageB64));
-                    } catch (_) {}
-                  }
-                  final initial = _initial(name, authUser.displayName);
-
-                  return Column(
-                    children: [
-                      _drawerHeader(
-                        context,
-                        name: name,
-                        avatarImage: avatarImage,
-                        initial: initial,
-                      ),
-                      Expanded(
-                        child: ListView(
-                          padding: EdgeInsets.zero,
-                          children: [
-                            _sectionLabel('General'),
-                            _navTile(
-                              context,
-                              icon: Icons.person,
-                              label: 'Profile',
-                              onTap: () {
-                                Navigator.pop(context);
-                                Navigator.of(context).pushNamed('/profile');
-                              },
-                            ),
-                            _navTile(
-                              context,
-                              icon: Icons.settings,
-                              label: 'Settings',
-                              onTap: () {
-                                Navigator.pop(context);
-                                Navigator.of(context).pushNamed('/settings');
-                              },
-                            ),
-                            const Divider(height: 24),
-                            _sectionLabel('Account'),
-                            _navTile(
-                              context,
-                              icon: Icons.logout,
-                              label: 'Log Out',
-                              isDestructive: true,
-                              onTap: () async {
-                                final ok = await _confirmSignOut(context);
-                                if (ok == true) {
-                                  Navigator.pop(context);
-                                }
-                              },
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  );
-                },
-              ),
-            ),
-          );
-        },
-      ),
-    //   body: FutureBuilder<List<Job>>(
-    //     future: DataService.getCurrentMechanicJobs(),
-    //       builder: (context, snapshot) {
-    //       if (snapshot.connectionState == ConnectionState.waiting) {
-    //         return const Center(child: CircularProgressIndicator());
-    //       }
-    //       if (snapshot.hasError) {
-    //         return Center(child: Text("Error: ${snapshot.error}"));
-    //       }
-    //
-    //       final jobs = snapshot.data ?? [];
-    //
-    //       final assignedCount = jobs
-    //           .where((j) => j.status == "Assigned")
-    //           .length;
-    //       final inProgressCount = jobs
-    //           .where((j) => j.status == "In Progress")
-    //           .length;
-    //       final completedCount = jobs
-    //           .where((j) => j.status == "Completed")
-    //           .length;
-    //       return Padding(
-    //         padding: const EdgeInsets.all(12.0),
-    //         child: ListView(
-    //           children: [
-    //             Row(
-    //               mainAxisAlignment: MainAxisAlignment.spaceAround,
-    //               children: [
-    //                 _statusCard("Assigned", assignedCount.toString(),
-    //                     Icons.assignment),
-    //                 _statusCard("In Progress", inProgressCount.toString(),
-    //                     Icons.sync),
-    //                 _statusCard("Completed", completedCount.toString(),
-    //                     Icons.check_circle),
-    //               ],
-    //             ),
-    //             const SizedBox(height: 20),
-    //             const Text(
-    //               "Task Tracker:",
-    //               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-    //             ),
-    //             const SizedBox(height: 10),
-    //             ...jobs.map((job) => _jobCard(context, job)).toList(),
-    //             if (jobs.isEmpty)
-    //               Container(
-    //                 padding: const EdgeInsets.all(32),
-    //                 child: Center(
-    //                   child: Column(
-    //                     children: [
-    //                       Icon(Icons.work_outline, size: 64, color: Colors
-    //                           .grey[400]),
-    //                       const SizedBox(height: 16),
-    //                       Text(
-    //                         "No active jobs",
-    //                         style: TextStyle(
-    //                           fontSize: 18,
-    //                           color: Colors.grey[600],
-    //                         ),
-    //                       ),
-    //                       const SizedBox(height: 8),
-    //                       Text(
-    //                         "Check back later for new assignments",
-    //                         style: TextStyle(
-    //                           fontSize: 14,
-    //                           color: Colors.grey[500],
-    //                         ),
-    //                       ),
-    //                     ],
-    //                   ),
-    //                 ),
-    //               ),
-    //           ],
-    //         ),
-    //       );
-    //     }
-    // ),
+      drawer: _buildDrawer(user), // <-- use helper function here
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
             .collection("jobs")
-            .where("assignedToEmail", isEqualTo: FirebaseAuth.instance.currentUser?.email)
+            .where("assignedToEmail", isEqualTo: user?.email)
             .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -340,8 +162,7 @@ class DashboardScreen extends StatelessWidget {
           ))
               .toList();
 
-          final assignedCount =
-              jobs.where((j) => j.status == "Assigned").length;
+          final assignedCount = jobs.where((j) => j.status == "Assigned").length;
           final inProgressCount =
               jobs.where((j) => j.status == "In Progress").length;
           final completedCount =
@@ -354,14 +175,18 @@ class DashboardScreen extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
-                    _statusCard("Assigned", assignedCount.toString(), Icons.assignment),
-                    _statusCard("In Progress", inProgressCount.toString(), Icons.sync),
-                    _statusCard("Completed", completedCount.toString(), Icons.check_circle),
+                    _statusCard("Assigned", assignedCount.toString(),
+                        Icons.assignment),
+                    _statusCard("In Progress", inProgressCount.toString(),
+                        Icons.sync),
+                    _statusCard("Completed", completedCount.toString(),
+                        Icons.check_circle),
                   ],
                 ),
                 const SizedBox(height: 20),
                 const Text("Task Tracker:",
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    style:
+                    TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 10),
                 ...jobs.map((job) => _jobCard(context, job)).toList(),
               ],
@@ -369,9 +194,102 @@ class DashboardScreen extends StatelessWidget {
           );
         },
       ),
-
     );
   }
+}
+
+Widget _buildDrawer(User? authUser) {
+  if (authUser == null) {
+    return const Drawer(
+      child: SafeArea(
+        child: ListTile(title: Text('Not signed in')),
+      ),
+    );
+  }
+
+  final docRef =
+  FirebaseFirestore.instance.collection('users').doc(authUser.uid);
+
+  String _initial(String? s, String? fallback) {
+    final t = (s ?? '').trim();
+    if (t.isNotEmpty) return t.characters.first.toUpperCase();
+    final f = (fallback ?? '').trim();
+    return f.isNotEmpty ? f.characters.first.toUpperCase() : 'U';
+  }
+
+  return Drawer(
+    child: SafeArea(
+      child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+        stream: docRef.snapshots(),
+        builder: (context, snap) {
+          final data =
+          (snap.hasData && snap.data!.exists) ? (snap.data!.data() ?? {}) : {};
+          final name =
+              (data['name'] as String?) ?? authUser.displayName ?? 'User';
+          final imageB64 = (data['imageB64'] as String?) ?? '';
+
+          ImageProvider? avatarImage;
+          if (imageB64.isNotEmpty) {
+            try {
+              avatarImage = MemoryImage(base64Decode(imageB64));
+            } catch (_) {}
+          }
+          final initial = _initial(name, authUser.displayName);
+
+          return Column(
+            children: [
+              _drawerHeader(
+                context,
+                name: name,
+                avatarImage: avatarImage,
+                initial: initial,
+              ),
+              Expanded(
+                child: ListView(
+                  padding: EdgeInsets.zero,
+                  children: [
+                    _sectionLabel('General'),
+                    _navTile(
+                      context,
+                      icon: Icons.person,
+                      label: 'Profile',
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.of(context).pushNamed('/profile');
+                      },
+                    ),
+                    _navTile(
+                      context,
+                      icon: Icons.settings,
+                      label: 'Settings',
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.of(context).pushNamed('/settings');
+                      },
+                    ),
+                    const Divider(height: 24),
+                    _sectionLabel('Account'),
+                    _navTile(
+                      context,
+                      icon: Icons.logout,
+                      label: 'Log Out',
+                      isDestructive: true,
+                      onTap: () async {
+                        final ok = await _confirmSignOut(context);
+                        if (ok == true) {
+                          Navigator.pop(context);
+                        }
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    ),
+  );
 }
 
 // Drawer Header

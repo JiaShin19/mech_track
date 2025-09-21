@@ -41,6 +41,5 @@ class NoteModel {
     'text': text,
     'imagesB64': imagesB64,
     if (createdAt != null) 'createdAt': Timestamp.fromDate(createdAt!),
-    // createdAt is set on create in the service (serverTimestamp)
   };
 }

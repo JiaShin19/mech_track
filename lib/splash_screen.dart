@@ -18,16 +18,6 @@ class SplashScreen extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Image.asset('assets/images/logo.png', height: 360),
-            // const Icon(Icons.build_circle, size: 96, color: Colors.white),
-            // const SizedBox(height: 16),
-            // const Text(
-            //   'MechTrack',
-            //   style: TextStyle(
-            //     fontSize: 28,
-            //     fontWeight: FontWeight.bold,
-            //     color: Colors.white,
-            //   ),
-            // ),
             const SizedBox(height: 16),
             // const CircularProgressIndicator(color: Colors.white),
             const CircularProgressIndicator(color: Color(0xFF2B384C)),
@@ -37,72 +27,3 @@ class SplashScreen extends StatelessWidget {
     );
   }
 }
-
-// void main() {
-//   runApp(MechTrackApp());
-// }
-//
-// class MechTrackApp extends StatelessWidget {
-//   @override
-//   Widget build(BuildContext context) {
-//     return MaterialApp(
-//       title: 'MechTrack',
-//       debugShowCheckedModeBanner: false,
-//       theme: ThemeData(primarySwatch: Colors.indigo),
-//       home: SplashScreen(),
-//     );
-//   }
-// }
-
-// class SplashScreen extends StatefulWidget {
-//   @override
-//   _SplashScreenState createState() => _SplashScreenState();
-// }
-//
-// class _SplashScreenState extends State<SplashScreen> {
-//   @override
-//   void initState() {
-//     super.initState();
-//     Timer(Duration(seconds: 3), () {
-//       Navigator.of(context).pushReplacement(
-//         MaterialPageRoute(builder: (_) => HomePage()),
-//       );
-//     });
-//   }
-//
-//   @override
-//   Widget build(BuildContext context) {
-//     return Scaffold(
-//       backgroundColor: Colors.white,
-//       body: Center(
-//         child: Column(
-//           mainAxisAlignment: MainAxisAlignment.center,
-//           children: [
-//             Image.asset('assets/logo.png', height: 120),
-//             SizedBox(height: 20),
-//             Text(
-//               'MechTrack',
-//               style: TextStyle(
-//                 fontSize: 28,
-//                 fontWeight: FontWeight.bold,
-//                 color: Colors.indigo,
-//               ),
-//             ),
-//             SizedBox(height: 20),
-//             CircularProgressIndicator(),
-//           ],
-//         ),
-//       ),
-//     );
-//   }
-// }
-//
-// class HomePage extends StatelessWidget {
-//   @override
-//   Widget build(BuildContext context) {
-//     return Scaffold(
-//       appBar: AppBar(title: Text('Mechanic Dashboard')),
-//       body: Center(child: Text('Welcome to MechTrack!')),
-//     );
-//   }
-// }

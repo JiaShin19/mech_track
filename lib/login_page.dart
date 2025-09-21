@@ -128,15 +128,6 @@ class _LoginPageState extends State<LoginPage> {
                               : const Text('Sign in'),
                       ),
                     )
-                    // SizedBox(
-                    //   width: double.infinity,
-                    //   child: FilledButton(
-                    //     onPressed: _loading ? null : _signinEmail,
-                    //     child: _loading
-                    //         ? const CircularProgressIndicator()
-                    //         : const Text('Sign in'),
-                    //   ),
-                    // ),
                   ]),
                 ),
                 const SizedBox(height: 12),
