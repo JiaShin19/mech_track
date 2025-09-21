@@ -174,7 +174,7 @@ class _ManageJobsPageState extends State<ManageJobsPage> {
                   DropdownButtonFormField<String>(
                     value: vehicleList.any((v) => v["id"] == selectedVehicleId)
                         ? selectedVehicleId
-                        : null, // fallback if mismatch
+                        : null,
                     items: vehicleList.map<DropdownMenuItem<String>>((v) {
                       return DropdownMenuItem<String>(
                         value: v["id"],
@@ -492,6 +492,7 @@ class _ManageJobsPageState extends State<ManageJobsPage> {
               final partsList = partsToList(job["parts"]);
               final servicesList = servicesToList(job["services"]);
               final customer = job["customer"] ?? {};
+              final vehicle = job["vehicle"] ?? {};
 
               // Summary info for the tile header
               final summaryTitle = "${job["id"] ?? ""} • ${job["customerName"] ?? ""}";
@@ -537,6 +538,8 @@ class _ManageJobsPageState extends State<ManageJobsPage> {
                           ],
                           const SizedBox(height: 5),
                           Text("Customer: ${customer["name"] ?? ""} (${customer["email"] ?? ""})"),
+                          const SizedBox(height: 5),
+                          Text("Vehicle: ${vehicle["licensePlate"]} - ${vehicle["model"]} (${vehicle["year"]})"),
                           const SizedBox(height: 8),
                           Row(
                             children: [

@@ -205,36 +205,39 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
                             ),
                             const SizedBox(width: 12),
                             Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    n.jobId.isEmpty ? job.id : n.jobId,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    n.text.isEmpty ? '(No text)' : n.text,
-                                    maxLines: 3,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(height: 1.25),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Align(
-                                    alignment: Alignment.bottomRight,
-                                    child: Text(
-                                      _fmt(n.createdAt),
+                              child: SizedBox(
+                                height: 70,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      n.title.isEmpty ? "(Untitled)" : n.title,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
                                       style: const TextStyle(
-                                        color: Colors.grey,
-                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
                                       ),
                                     ),
-                                  ),
-                                ],
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      n.text.isEmpty ? '(No text)' : n.text,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(height: 1.25),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Align(
+                                      alignment: Alignment.bottomRight,
+                                      child: Text(
+                                        _fmt(n.createdAt),
+                                        style: const TextStyle(
+                                          color: Colors.grey,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
                           ],
@@ -268,288 +271,573 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
           },
         ),
       ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            // ---------- Header ----------
-            Container(
-              width: double.infinity,
-              margin: const EdgeInsets.all(16),
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.grey[100],
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.grey[300]!),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Text(
-                        current.id,
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const Spacer(),
-                      if (current.status == 'Assigned')
-                        const Icon(Icons.assignment, color: Colors.grey, size: 20),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Container(
-                    padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: _getStatusColor(current.status),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      current.status,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text("Assigned to:",
-                                style: TextStyle(
-                                    color: Colors.grey[600], fontSize: 12)),
-                            Text(
-                              current.assignedTo,
-                              style: const TextStyle(
-                                  fontWeight: FontWeight.w500, fontSize: 14),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text("Created:",
-                                style: TextStyle(
-                                    color: Colors.grey[600], fontSize: 12)),
-                            Text(
-                              current.createdDate,
-                              style: const TextStyle(
-                                  fontWeight: FontWeight.w500, fontSize: 14),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text("Total Time Spent:",
-                      style:
-                      TextStyle(color: Colors.grey[600], fontSize: 12)),
-                  Text(
-                    current.totalTimeSpent,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.w500, fontSize: 14),
-                  ),
-                ],
-              ),
-            ),
+      // body: SafeArea(
+      //   child: Column(
+      //     children: [
+      //       // ---------- Header ----------
+      //       Container(
+      //         width: double.infinity,
+      //         margin: const EdgeInsets.all(16),
+      //         padding: const EdgeInsets.all(16),
+      //         decoration: BoxDecoration(
+      //           color: Colors.grey[100],
+      //           borderRadius: BorderRadius.circular(12),
+      //           border: Border.all(color: Colors.grey[300]!),
+      //         ),
+      //         child: Column(
+      //           crossAxisAlignment: CrossAxisAlignment.start,
+      //           children: [
+      //             Row(
+      //               children: [
+      //                 Text(
+      //                   current.id,
+      //                   style: const TextStyle(
+      //                     fontSize: 18,
+      //                     fontWeight: FontWeight.bold,
+      //                   ),
+      //                 ),
+      //                 const Spacer(),
+      //                 if (current.status == 'Assigned')
+      //                   const Icon(Icons.assignment, color: Colors.grey, size: 20),
+      //               ],
+      //             ),
+      //             const SizedBox(height: 8),
+      //             Container(
+      //               padding:
+      //               const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      //               decoration: BoxDecoration(
+      //                 color: _getStatusColor(current.status),
+      //                 borderRadius: BorderRadius.circular(12),
+      //               ),
+      //               child: Text(
+      //                 current.status,
+      //                 style: const TextStyle(
+      //                   color: Colors.white,
+      //                   fontSize: 12,
+      //                   fontWeight: FontWeight.bold,
+      //                 ),
+      //               ),
+      //             ),
+      //             const SizedBox(height: 12),
+      //             Row(
+      //               children: [
+      //                 Expanded(
+      //                   child: Column(
+      //                     crossAxisAlignment: CrossAxisAlignment.start,
+      //                     children: [
+      //                       Text("Assigned to:",
+      //                           style: TextStyle(
+      //                               color: Colors.grey[600], fontSize: 12)),
+      //                       Text(
+      //                         current.assignedTo,
+      //                         style: const TextStyle(
+      //                             fontWeight: FontWeight.w500, fontSize: 14),
+      //                       ),
+      //                     ],
+      //                   ),
+      //                 ),
+      //                 Expanded(
+      //                   child: Column(
+      //                     crossAxisAlignment: CrossAxisAlignment.start,
+      //                     children: [
+      //                       Text("Created:",
+      //                           style: TextStyle(
+      //                               color: Colors.grey[600], fontSize: 12)),
+      //                       Text(
+      //                         current.createdDate,
+      //                         style: const TextStyle(
+      //                             fontWeight: FontWeight.w500, fontSize: 14),
+      //                       ),
+      //                     ],
+      //                   ),
+      //                 ),
+      //               ],
+      //             ),
+      //             const SizedBox(height: 8),
+      //             Text("Total Time Spent:",
+      //                 style:
+      //                 TextStyle(color: Colors.grey[600], fontSize: 12)),
+      //             Text(
+      //               current.totalTimeSpent,
+      //               style: const TextStyle(
+      //                   fontWeight: FontWeight.w500, fontSize: 14),
+      //             ),
+      //           ],
+      //         ),
+      //       ),
+      //
+      //       // ---------- Body ----------
+      //       Expanded(
+      //         child: ListView(
+      //           padding: const EdgeInsets.symmetric(horizontal: 16),
+      //           children: [
+      //             _clickableInfoCard(
+      //               "Customer",
+      //               Icons.person,
+      //               Text(current.customer.name),
+      //               () {
+      //                 Navigator.push(
+      //                   context,
+      //                   MaterialPageRoute(
+      //                     builder: (_) =>
+      //                         CustomerDetailScreen(customer: current.customer),
+      //                   ),
+      //                 );
+      //               },
+      //             ),
+      //             _clickableInfoCard(
+      //               "Vehicle",
+      //               Icons.directions_car,
+      //               Text("${current.vehicle.model} (${current.vehicle.year})"),
+      //                 () {
+      //                 Navigator.push(
+      //                   context,
+      //                   MaterialPageRoute(
+      //                     builder: (_) =>
+      //                         VehicleDetailScreen(vehicle: current.vehicle),
+      //                   ),
+      //                 );
+      //               },
+      //             ),
+      //             _clickableInfoCard(
+      //               "Parts",
+      //               Icons.inventory,
+      //               Text("${current.partsCount} items assigned"),
+      //                 () {
+      //                 Navigator.push(
+      //                   context,
+      //                   MaterialPageRoute(
+      //                     builder: (_) => PartsDetailScreen(parts: current.parts),
+      //                   ),
+      //                 );
+      //               },
+      //             ),
+      //             _nonClickableInfoCard(
+      //               "Job Description",
+      //               Icons.description,
+      //               Text(
+      //                 current.jobDescription,
+      //                 maxLines: 3,
+      //                 overflow: TextOverflow.ellipsis,
+      //               ),
+      //             ),
+      //             _nonClickableInfoCard(
+      //               "Services",
+      //               Icons.build,
+      //               Column(
+      //                 crossAxisAlignment: CrossAxisAlignment.start,
+      //                 children: current.services
+      //                 .map((s) => Padding(
+      //                       padding: const EdgeInsets.only(top: 2),
+      //                       child: Text("• $s"),
+      //                 ))
+      //                 .toList(),
+      //               ),
+      //             ),
+      //
+      //             TimeTrackingPanel(
+      //               jobId: job.id,
+      //               mechanicId: mechanicId,
+      //               margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 0),
+      //               showStatus: true,
+      //             ),
+      //
+      //             if (job.status == "Completed")
+      //               StreamBuilder<DocumentSnapshot>(
+      //                 stream: FirebaseFirestore.instance
+      //                     .collection("jobs")
+      //                     .doc(job.id)
+      //                     .snapshots(),
+      //                 builder: (context, snap) {
+      //                   if (!snap.hasData) return const SizedBox.shrink();
+      //                   final data = snap.data!.data() as Map<String, dynamic>? ?? {};
+      //                   final sig = data["signatureB64"] as String?;
+      //
+      //                   if (sig != null && sig.isNotEmpty) {
+      //                     return Card(
+      //                       margin: const EdgeInsets.symmetric(vertical: 8),
+      //                       shape: RoundedRectangleBorder(
+      //                         borderRadius: BorderRadius.circular(12),
+      //                       ),
+      //                       elevation: 3,
+      //                       child: Padding(
+      //                         padding: const EdgeInsets.all(16),
+      //                         child: Column(
+      //                           crossAxisAlignment: CrossAxisAlignment.start,
+      //                           children: [
+      //                             Row(
+      //                               children: const [
+      //                                 Icon(Icons.edit_document, color: Colors.indigo),
+      //                                 SizedBox(width: 8),
+      //                                 Text(
+      //                                   "Digital Sign-Off",
+      //                                   style: TextStyle(
+      //                                     fontWeight: FontWeight.bold,
+      //                                     fontSize: 16,
+      //                                   ),
+      //                                 ),
+      //                               ],
+      //                             ),
+      //                             const SizedBox(height: 12),
+      //                             Center(
+      //                               child: ClipRRect(
+      //                                 borderRadius: BorderRadius.circular(8),
+      //                                 child: Image.memory(
+      //                                   base64Decode(sig.split(",").last),
+      //                                   height: 120,
+      //                                   fit: BoxFit.contain,
+      //                                 ),
+      //                               ),
+      //                             ),
+      //                             const SizedBox(height: 12),
+      //                             Container(
+      //                               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      //                               decoration: BoxDecoration(
+      //                                 color: Colors.green.shade50,
+      //                                 borderRadius: BorderRadius.circular(8),
+      //                               ),
+      //                               child: Row(
+      //                                 children: const [
+      //                                   Icon(Icons.verified, color: Colors.green),
+      //                                   SizedBox(width: 6),
+      //                                   Text(
+      //                                     "Signed Off",
+      //                                     style: TextStyle(
+      //                                       color: Colors.green,
+      //                                       fontWeight: FontWeight.bold,
+      //                                     ),
+      //                                   ),
+      //                                 ],
+      //                               ),
+      //                             ),
+      //                           ],
+      //                         ),
+      //                       ),
+      //                     );
+      //                   } else {
+      //                     return Padding(
+      //                       padding: const EdgeInsets.symmetric(vertical: 8),
+      //                       child: ElevatedButton.icon(
+      //                         icon: const Icon(Icons.check_circle_outline),
+      //                         label: const Text("Sign Off"),
+      //                         style: ElevatedButton.styleFrom(
+      //                           backgroundColor: Colors.indigo,
+      //                           foregroundColor: Colors.white,
+      //                           minimumSize: const Size.fromHeight(44),
+      //                         ),
+      //                         onPressed: () async {
+      //                           final ok = await Navigator.push<bool>(
+      //                             context,
+      //                             MaterialPageRoute(
+      //                               builder: (context) => DigitalSignoffScreen(
+      //                                 jobId: job.id,
+      //                                 mechanicId: mechanicId,
+      //                               ),
+      //                             ),
+      //                           );
+      //                           if (ok == true) setState(() {});
+      //                         },
+      //                       ),
+      //                     );
+      //                   }
+      //                 },
+      //               ),
+      //
+      //             // ---------- NEW: Job Notes (only when any exist) ----------
+      //             _notesSection(),
+      //
+      //             const SizedBox(height: 20),
+      //           ],
+      //         ),
+      //       ),
+      //     ],
+      //   ),
+      // ),
 
-            // ---------- Body ----------
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                children: [
-                  _clickableInfoCard(
-                    "Customer",
-                    Icons.person,
-                    Text(current.customer.name),
-                    () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) =>
-                              CustomerDetailScreen(customer: current.customer),
+      body: SafeArea(
+        child: StreamBuilder<DocumentSnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection("jobs")
+              .doc(job.id)
+              .snapshots(),
+          builder: (context, snapshot) {
+            if (!snapshot.hasData) {
+              return const Center(child: CircularProgressIndicator());
+            }
+
+            final data = snapshot.data!.data() as Map<String, dynamic>? ?? {};
+            final current = Job.fromMap(data, snapshot.data!.id);
+
+            return Column(
+              children: [
+                // ---------- Header ----------
+                Container(
+                  width: double.infinity,
+                  margin: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[100],
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.grey[300]!),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(current.id,
+                              style: const TextStyle(
+                                  fontSize: 18, fontWeight: FontWeight.bold)),
+                          const Spacer(),
+                          if (current.status == 'Assigned')
+                            const Icon(Icons.assignment,
+                                color: Colors.grey, size: 20),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: _getStatusColor(current.status),
+                          borderRadius: BorderRadius.circular(12),
                         ),
-                      );
-                    },
-                  ),
-                  _clickableInfoCard(
-                    "Vehicle",
-                    Icons.directions_car,
-                    Text("${current.vehicle.model} (${current.vehicle.year})"),
-                      () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) =>
-                              VehicleDetailScreen(vehicle: current.vehicle),
+                        child: Text(
+                          current.status,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
-                      );
-                    },
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text("Assigned to:",
+                                    style: TextStyle(
+                                        color: Colors.grey[600], fontSize: 12)),
+                                Text(current.assignedTo,
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.w500,
+                                        fontSize: 14)),
+                              ],
+                            ),
+                          ),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text("Created:",
+                                    style: TextStyle(
+                                        color: Colors.grey[600], fontSize: 12)),
+                                Text(current.createdDate,
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.w500,
+                                        fontSize: 14)),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text("Total Time Spent:",
+                          style:
+                          TextStyle(color: Colors.grey[600], fontSize: 12)),
+                      Text(current.totalTimeSpent,
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w500, fontSize: 14)),
+                    ],
                   ),
-                  _clickableInfoCard(
-                    "Parts",
-                    Icons.inventory,
-                    Text("${current.partsCount} items assigned"),
-                      () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => PartsDetailScreen(parts: current.parts),
+                ),
+
+                // ---------- Body ----------
+                Expanded(
+                  child: ListView(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    children: [
+                      _clickableInfoCard(
+                        "Customer",
+                        Icons.person,
+                        Text(current.customer.name),
+                            () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) =>
+                                    CustomerDetailScreen(customer: current.customer)),
+                          );
+                        },
+                      ),
+                      _clickableInfoCard(
+                        "Vehicle",
+                        Icons.directions_car,
+                        Text("${current.vehicle.model} (${current.vehicle.year})"),
+                            () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) =>
+                                    VehicleDetailScreen(vehicle: current.vehicle)),
+                          );
+                        },
+                      ),
+                      _clickableInfoCard(
+                        "Parts",
+                        Icons.inventory,
+                        Text("${current.partsCount} items assigned"),
+                            () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) =>
+                                    PartsDetailScreen(parts: current.parts)),
+                          );
+                        },
+                      ),
+                      _nonClickableInfoCard(
+                        "Job Description",
+                        Icons.description,
+                        Text(
+                          current.jobDescription,
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                      );
-                    },
-                  ),
-                  _nonClickableInfoCard(
-                    "Job Description",
-                    Icons.description,
-                    Text(
-                      current.jobDescription,
-                      maxLines: 3,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  _nonClickableInfoCard(
-                    "Services",
-                    Icons.build,
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: current.services
-                      .map((s) => Padding(
+                      ),
+                      _nonClickableInfoCard(
+                        "Services",
+                        Icons.build,
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: current.services
+                              .map((s) => Padding(
                             padding: const EdgeInsets.only(top: 2),
                             child: Text("• $s"),
-                      ))
-                      .toList(),
-                    ),
-                  ),
+                          ))
+                              .toList(),
+                        ),
+                      ),
+                      TimeTrackingPanel(
+                        jobId: current.id,
+                        mechanicId: mechanicId,
+                        margin: const EdgeInsets.symmetric(vertical: 8),
+                        showStatus: true,
+                      ),
+                      if (job.status == "Completed")
+                        StreamBuilder<DocumentSnapshot>(
+                          stream: FirebaseFirestore.instance
+                              .collection("jobs")
+                              .doc(job.id)
+                              .snapshots(),
+                          builder: (context, snap) {
+                            if (!snap.hasData) return const SizedBox.shrink();
+                            final data = snap.data!.data() as Map<String, dynamic>? ?? {};
+                            final sig = data["signatureB64"] as String?;
 
-                  TimeTrackingPanel(
-                    jobId: job.id,
-                    mechanicId: mechanicId,
-                    margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 0),
-                    showStatus: true,
-                  ),
-
-                  if (job.status == "Completed")
-                    StreamBuilder<DocumentSnapshot>(
-                      stream: FirebaseFirestore.instance
-                          .collection("jobs")
-                          .doc(job.id)
-                          .snapshots(),
-                      builder: (context, snap) {
-                        if (!snap.hasData) return const SizedBox.shrink();
-                        final data = snap.data!.data() as Map<String, dynamic>? ?? {};
-                        final sig = data["signatureB64"] as String?;
-
-                        if (sig != null && sig.isNotEmpty) {
-                          return Card(
-                            margin: const EdgeInsets.symmetric(vertical: 8),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            elevation: 3,
-                            child: Padding(
-                              padding: const EdgeInsets.all(16),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: const [
-                                      Icon(Icons.edit_document, color: Colors.indigo),
-                                      SizedBox(width: 8),
-                                      Text(
-                                        "Digital Sign-Off",
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 16,
+                            if (sig != null && sig.isNotEmpty) {
+                              return Card(
+                                margin: const EdgeInsets.symmetric(vertical: 8),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                elevation: 3,
+                                child: Padding(
+                                  padding: const EdgeInsets.all(16),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: const [
+                                          Icon(Icons.edit_document, color: Colors.indigo),
+                                          SizedBox(width: 8),
+                                          Text(
+                                            "Digital Sign-Off",
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 16,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 12),
+                                      Center(
+                                        child: ClipRRect(
+                                          borderRadius: BorderRadius.circular(8),
+                                          child: Image.memory(
+                                            base64Decode(sig.split(",").last),
+                                            height: 120,
+                                            fit: BoxFit.contain,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 12),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                        decoration: BoxDecoration(
+                                          color: Colors.green.shade50,
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        child: Row(
+                                          children: const [
+                                            Icon(Icons.verified, color: Colors.green),
+                                            SizedBox(width: 6),
+                                            Text(
+                                              "Signed Off",
+                                              style: TextStyle(
+                                                color: Colors.green,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                       ),
                                     ],
                                   ),
-                                  const SizedBox(height: 12),
-                                  Center(
-                                    child: ClipRRect(
-                                      borderRadius: BorderRadius.circular(8),
-                                      child: Image.memory(
-                                        base64Decode(sig.split(",").last),
-                                        height: 120,
-                                        fit: BoxFit.contain,
-                                      ),
-                                    ),
+                                ),
+                              );
+                            } else {
+                              return Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 8),
+                                child: ElevatedButton.icon(
+                                  icon: const Icon(Icons.check_circle_outline),
+                                  label: const Text("Sign Off"),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.indigo,
+                                    foregroundColor: Colors.white,
+                                    minimumSize: const Size.fromHeight(44),
                                   ),
-                                  const SizedBox(height: 12),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                    decoration: BoxDecoration(
-                                      color: Colors.green.shade50,
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: Row(
-                                      children: const [
-                                        Icon(Icons.verified, color: Colors.green),
-                                        SizedBox(width: 6),
-                                        Text(
-                                          "Signed Off",
-                                          style: TextStyle(
-                                            color: Colors.green,
-                                            fontWeight: FontWeight.bold,
-                                          ),
+                                  onPressed: () async {
+                                    final ok = await Navigator.push<bool>(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => DigitalSignoffScreen(
+                                          jobId: job.id,
+                                          mechanicId: mechanicId,
                                         ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-                        } else {
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                            child: ElevatedButton.icon(
-                              icon: const Icon(Icons.check_circle_outline),
-                              label: const Text("Sign Off"),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.indigo,
-                                foregroundColor: Colors.white,
-                                minimumSize: const Size.fromHeight(44),
-                              ),
-                              onPressed: () async {
-                                final ok = await Navigator.push<bool>(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => DigitalSignoffScreen(
-                                      jobId: job.id,
-                                      mechanicId: mechanicId,
-                                    ),
-                                  ),
-                                );
-                                if (ok == true) setState(() {});
-                              },
-                            ),
-                          );
-                        }
-                      },
-                    ),
-
-                  // ---------- NEW: Job Notes (only when any exist) ----------
-                  _notesSection(),
-
-                  const SizedBox(height: 20),
-                ],
-              ),
-            ),
-          ],
+                                      ),
+                                    );
+                                    if (ok == true) setState(() {});
+                                  },
+                                ),
+                              );
+                            }
+                          },
+                        ),
+                      _notesSection(),
+                      const SizedBox(height: 24),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          },
         ),
       ),
+    );
 
       // Keep your bottom nav (returns to Home on index 0)
       // bottomNavigationBar: BottomNavigationBar(
@@ -566,7 +854,7 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
       //     if (index == 0) Navigator.pop(context);
       //   },
       // ),
-    );
+    // );
   }
 
   // @override

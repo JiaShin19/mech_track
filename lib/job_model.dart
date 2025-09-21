@@ -140,9 +140,21 @@ class Job {
   }
 
   factory Job.fromMap(Map<String, dynamic> map, String id) {
-    final customerMap = (map['customer'] ?? {}) as Map<String, dynamic>;
-    final vehicleMap = (map['vehicle'] ?? {}) as Map<String, dynamic>;
-    final partsMap = (map['parts'] ?? {}) as Map<String, dynamic>;
+    // final customerMap = (map['customer'] ?? {}) as Map<String, dynamic>;
+    // final vehicleMap = (map['vehicle'] ?? {}) as Map<String, dynamic>;
+    // final partsMap = (map['parts'] ?? {}) as Map<String, dynamic>;
+
+    final customerMap = map['customer'] != null
+        ? Map<String, dynamic>.from(map['customer'])
+        : <String, dynamic>{};
+
+    final vehicleMap = map['vehicle'] != null
+        ? Map<String, dynamic>.from(map['vehicle'])
+        : <String, dynamic>{};
+
+    final partsMap = map['parts'] != null
+        ? Map<String, dynamic>.from(map['parts'])
+        : <String, dynamic>{};
 
     return Job(
       id: map['id'] ?? '',
