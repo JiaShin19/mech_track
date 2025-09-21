@@ -3,17 +3,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-/// =============================
-/// TimeTrackingService
-/// =============================
-/// Firestore Data Model:
-/// jobs/{jobId} fields:
-///   status: String ("Assigned", "In Progress", "Completed", etc.)
-///   aggregatedDurationSeconds: int (0 if new)
-///   running: bool
-///   startedAt: Timestamp|null
-/// Optional:
-///   totalTimeSpentDisplay: String (cached human-readable)
 class TimeTrackingService {
   final FirebaseFirestore _db;
   TimeTrackingService({FirebaseFirestore? firestore})
@@ -66,6 +55,7 @@ class TimeTrackingService {
         'running': false,
         'startedAt': null,
         'aggregatedDurationSeconds': newTotal,
+        'totalTimeSpent': _formatHmsFull(newTotal),
         'totalTimeSpentDisplay': _formatHoursDisplay(newTotal),
       });
     });
@@ -99,6 +89,7 @@ class TimeTrackingService {
         'startedAt': null,
         'status': 'Completed',
         'aggregatedDurationSeconds': agg,
+        'totalTimeSpent': _formatHmsFull(agg),
         'totalTimeSpentDisplay': _formatHoursDisplay(agg),
       });
     });
@@ -108,12 +99,16 @@ class TimeTrackingService {
     final h = seconds / 3600.0;
     return "${h.toStringAsFixed(h < 10 ? 2 : 1)}h";
   }
+  String _formatHmsFull(int seconds) {
+    final h = seconds ~/ 3600;
+    final m = (seconds % 3600) ~/ 60;
+    final s = seconds % 60;
+    return '${h.toString().padLeft(2, '0')}:'
+      '${m.toString().padLeft(2, '0')}:'
+      '${s.toString().padLeft(2, '0')}';
+  }
 }
 
-/// =============================
-/// JobTimerProvider
-/// =============================
-/// Observes the job to compute live total seconds.
 class JobTimerProvider extends ChangeNotifier {
   final String jobId;
   final FirebaseFirestore _db;
