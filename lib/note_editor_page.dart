@@ -261,13 +261,22 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
                               child: Row(
                                 children: [
                                   Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                    child: Row(
                                       children: [
-                                        Text(jobId, style: const TextStyle(fontWeight: FontWeight.bold)),
-                                        if (customer.isNotEmpty)
-                                          Text(customer,
-                                              style: TextStyle(fontSize: 12, color: Colors.grey[700])),
+                                        Text(
+                                          jobId,
+                                          style: const TextStyle(fontWeight: FontWeight.bold),
+                                        ),
+                                        if (customer.isNotEmpty) ...[
+                                          const SizedBox(width: 6),
+                                          Flexible(
+                                            child: Text(
+                                              customer,
+                                              style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                        ],
                                       ],
                                     ),
                                   ),
@@ -275,8 +284,10 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
                                     Chip(
                                       label: Text(status, style: const TextStyle(fontSize: 11)),
                                       backgroundColor: statusColor,
-                                      visualDensity: VisualDensity.compact,
+                                      visualDensity: const VisualDensity(horizontal: -4, vertical: -4),
                                       materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                      padding: EdgeInsets.zero,
+                                      labelPadding: const EdgeInsets.symmetric(horizontal: 6, vertical: 0),
                                     ),
                                 ],
                               ),
