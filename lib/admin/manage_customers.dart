@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:hive/hive.dart';
 
 class ManageCustomersPage extends StatefulWidget {
   const ManageCustomersPage({super.key});
@@ -9,9 +10,34 @@ class ManageCustomersPage extends StatefulWidget {
 }
 
 class _ManageCustomersPageState extends State<ManageCustomersPage> {
-  final CollectionReference customersRef = FirebaseFirestore.instance.collection('Customers');
+  final CollectionReference customersRef =
+  FirebaseFirestore.instance.collection('Customers');
 
-  void showCustomerForm({Map<String, dynamic>? customer, String? docId}) {
+  Future<void> _cacheCustomer(
+      {required String action, String? docId, required Map<String, dynamic> data}) async {
+    final box = await Hive.openBox('customersCache');
+    final key = docId ?? DateTime.now().millisecondsSinceEpoch.toString();
+    await box.put(key, {"action": action, "data": data});
+  }
+
+  Future<void> _cacheVehicle({
+    required String customerId,
+    required String action,
+    String? docId,
+    required Map<String, dynamic> data,
+  }) async {
+    final box = await Hive.openBox('vehiclesCache');
+    final key = docId ?? "${customerId}_${DateTime
+        .now()
+        .millisecondsSinceEpoch}";
+    await box.put(key, {
+      "customerId": customerId,
+      "action": action,
+      "data": data,
+    });
+  }
+
+    void showCustomerForm({Map<String, dynamic>? customer, String? docId}) {
     final nameController = TextEditingController(text: customer?["name"] ?? "");
     final emailController = TextEditingController(text: customer?["email"] ?? "");
     final phoneController = TextEditingController(text: customer?["phone"] ?? "");
@@ -20,7 +46,7 @@ class _ManageCustomersPageState extends State<ManageCustomersPage> {
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: Text(customer == null ? "Add Customer" : "Edit Customer"),
         content: SingleChildScrollView(
           child: Column(
@@ -34,7 +60,7 @@ class _ManageCustomersPageState extends State<ManageCustomersPage> {
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text("Cancel")),
           ElevatedButton(
             onPressed: () async {
               final newCustomer = {
@@ -46,12 +72,26 @@ class _ManageCustomersPageState extends State<ManageCustomersPage> {
                     ? avatarController.text.trim()
                     : "assets/images/default_avatar.png",
               };
-              if (customer == null) {
-                await customersRef.add(newCustomer);
-              } else {
-                await customersRef.doc(docId!).update(newCustomer);
+
+              await _cacheCustomer(
+                action: customer == null ? "add" : "update",
+                docId: docId,
+                data: newCustomer,
+              );
+              if (mounted) {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text("Customer saved offline, will sync later.")),
+                );
               }
-              if (mounted) Navigator.pop(context);
+
+              try {
+                if (customer == null) {
+                  await customersRef.add(newCustomer);
+                } else {
+                  await customersRef.doc(docId!).update(newCustomer);
+                }
+              } catch (_) {}
             },
             child: const Text("Save"),
           ),
@@ -76,7 +116,7 @@ class _ManageCustomersPageState extends State<ManageCustomersPage> {
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: Text(vehicle == null ? "Add Vehicle" : "Edit Vehicle"),
         content: SingleChildScrollView(
           child: Column(
@@ -91,7 +131,7 @@ class _ManageCustomersPageState extends State<ManageCustomersPage> {
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text("Cancel")),
           ElevatedButton(
             onPressed: () async {
               final newVehicle = {
@@ -102,12 +142,27 @@ class _ManageCustomersPageState extends State<ManageCustomersPage> {
                 "currentMileage": mileageController.text.trim(),
                 "imageUrl": imageController.text.trim(),
               };
-              if (vehicle == null) {
-                await vehiclesRef.add(newVehicle);
-              } else {
-                await vehiclesRef.doc(docId!).update(newVehicle);
+
+              await _cacheVehicle(
+                customerId: customerId,
+                action: vehicle == null ? "add" : "update",
+                docId: docId,
+                data: newVehicle,
+              );
+              if (mounted) {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text("Vehicle saved offline, will sync later.")),
+                );
               }
-              if (mounted) Navigator.pop(context);
+
+              try {
+                if (vehicle == null) {
+                  await vehiclesRef.add(newVehicle);
+                } else {
+                  await vehiclesRef.doc(docId!).update(newVehicle);
+                }
+              } catch (_) {}
             },
             child: const Text("Save"),
           ),
@@ -123,10 +178,7 @@ class _ManageCustomersPageState extends State<ManageCustomersPage> {
         title: Text(title),
         content: Text(message),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text("Cancel"),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("Cancel")),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () => Navigator.pop(context, true),
@@ -163,7 +215,9 @@ class _ManageCustomersPageState extends State<ManageCustomersPage> {
                     children: [
                       ListTile(
                         leading: CircleAvatar(
-                          backgroundImage: AssetImage(customer["avatarUrl"] ?? "assets/images/default_avatar.png"),
+                          backgroundImage: AssetImage(
+                            customer["avatarUrl"] ?? "assets/images/default_avatar.png",
+                          ),
                         ),
                         title: Text(customer["name"] ?? ""),
                         subtitle: Text(customer["email"] ?? ""),
@@ -182,11 +236,15 @@ class _ManageCustomersPageState extends State<ManageCustomersPage> {
                                   "Are you sure you want to delete this customer? All their vehicles will also be deleted. This action cannot be undone.",
                                 );
                                 if (confirm == true) {
-                                  await customersRef.doc(customerId).delete();
-                                  if (mounted) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(content: Text('Customer deleted.')),
-                                    );
+                                  try {
+                                    await customersRef.doc(customerId).delete();
+                                  } catch (_) {
+                                    await _cacheCustomer(action: "delete", docId: customerId, data: {});
+                                    if (mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(content: Text('Customer deleted.')),
+                                      );
+                                    }
                                   }
                                 }
                               },
@@ -244,11 +302,20 @@ class _ManageCustomersPageState extends State<ManageCustomersPage> {
                                             "Are you sure you want to delete this vehicle? This action cannot be undone.",
                                           );
                                           if (confirm == true) {
-                                            await customersRef.doc(customerId).collection('vehicle').doc(vehicleId).delete();
-                                            if (mounted) {
-                                              ScaffoldMessenger.of(context).showSnackBar(
-                                                const SnackBar(content: Text('Vehicle deleted.')),
+                                            try {
+                                              await customersRef.doc(customerId).collection('vehicle').doc(vehicleId).delete();
+                                            } catch (_) {
+                                              await _cacheVehicle(
+                                                customerId: customerId,
+                                                action: "delete",
+                                                docId: vehicleId,
+                                                data: {},
                                               );
+                                              if (mounted) {
+                                                ScaffoldMessenger.of(context).showSnackBar(
+                                                  const SnackBar(content: Text('Vehicle deleted.')),
+                                                );
+                                              }
                                             }
                                           }
                                         },

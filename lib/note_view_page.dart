@@ -137,8 +137,11 @@ class NoteViewPage extends StatelessWidget {
                           ) ??
                               false;
                           if (ok) {
-                            await svc.delete(n.id);
+                            svc.delete(n.id);
                             if (context.mounted) Navigator.pop(context);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Note deleted')),
+                            );
                           }
                         }
                       },

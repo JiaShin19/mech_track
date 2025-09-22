@@ -1,6 +1,7 @@
 // summary.dart
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'job_model.dart';
 import 'data_service.dart';
 
@@ -31,7 +32,23 @@ class _SummaryScreenState extends State<SummaryScreen> {
   @override
   void initState() {
     super.initState();
+    _loadUserChoice();
     _loadInitialData();
+  }
+
+  Future<void> _loadUserChoice() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getBool('isMonthly');
+    if (saved != null) {
+      setState(() {
+        isMonthly = saved;
+      });
+    }
+  }
+
+  Future<void> _saveUserChoice() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('isMonthly', isMonthly);
   }
 
   Future<void> _loadInitialData() async {
@@ -383,6 +400,7 @@ class _SummaryScreenState extends State<SummaryScreen> {
           setState(() {
             isMonthly = isFirst;
           });
+          await _saveUserChoice();
           await _loadData();
         }
       },

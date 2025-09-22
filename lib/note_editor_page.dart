@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:hive/hive.dart';
 import 'package:image_picker/image_picker.dart';
 import '../services/notes_service.dart';
 import '../services/note_model.dart';
@@ -34,6 +36,7 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
   void initState() {
     super.initState();
     _loadExisting();
+    loadCachedJobs();
   }
 
   Future<void> _loadExisting() async {
@@ -49,6 +52,14 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
     });
   }
 
+  Future<List<_Job>> loadCachedJobs() async {
+    final box = Hive.box('jobsCache');
+    final cached = box.get('jobs', defaultValue: []);
+    return (cached as List)
+        .map((m) => _Job(m['id'], m['label']))
+        .toList();
+  }
+
   // Jobs dropdown (from /jobs)
   Stream<List<_Job>> _jobOptions() {
     final user = FirebaseAuth.instance.currentUser;
@@ -60,16 +71,23 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
         .where('assignedToEmail', isEqualTo: user.email)
         .orderBy('id')
         .snapshots()
-        .map((s) => s.docs.map((d) {
-      final m = d.data();
-      final id = (m['id'] as String?) ?? d.id;
-      final c = (m['customerName'] as String?) ?? '';
-      final st = (m['status'] as String?) ?? '';
-      return _Job(
-        id,
-        [id, if (c.isNotEmpty) '• $c', if (st.isNotEmpty) '• $st'].join(' '),
-      );
-    }).toList());
+        .map((s) {
+      final jobs = s.docs.map((d) {
+        final m = d.data();
+        final id = (m['id'] as String?) ?? d.id;
+        final c = (m['customerName'] as String?) ?? '';
+        final st = (m['status'] as String?) ?? '';
+        return _Job(
+          id,
+          [id, if (c.isNotEmpty) '• $c', if (st.isNotEmpty) '• $st'].join(' '),
+        );
+      }).toList();
+
+      final box = Hive.box('jobsCache');
+      box.put('jobs', jobs.map((j) => {'id': j.id, 'label': j.label}).toList());
+
+      return jobs;
+    });
   }
 
   Future<void> _pickGallery() async {
@@ -98,28 +116,6 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
     try {
       final id = widget.noteId ?? DateTime.now().millisecondsSinceEpoch.toString();
       final currentUser = FirebaseAuth.instance.currentUser;
-      final userEmail = currentUser?.email?.toLowerCase();
-
-      final jobDoc = await FirebaseFirestore.instance
-          .collection('jobs')
-          .doc(_selectedJobId)
-          .get();
-
-      if (!jobDoc.exists) {
-        throw 'Selected job not found in Firestore';
-      }
-
-      final jobData = jobDoc.data()!;
-      final jobAssignedEmail = (jobData['assignedToEmail'] as String?)?.toLowerCase();
-
-      // ✅ Check if job belongs to this user
-      if (jobAssignedEmail != userEmail) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('You are not assigned to this job.')),
-        );
-        setState(() => _saving = false);
-        return;
-      }
 
       // convert local files → Base64 data URIs
       final newB64 = <String>[];
@@ -137,10 +133,11 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
         imagesB64: [..._remoteB64, ...newB64],
       );
 
-      print(model.toMap());
-      await _svc.upsert(model);
-      if (!mounted) return;
-      Navigator.pop(context);
+      await _svc.cacheNote(model);
+      if (mounted) {
+        Navigator.pop(context);
+      }
+      unawaited(_svc.upsert(model));
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -229,83 +226,89 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // Job dropdown
-                    StreamBuilder<List<_Job>>(
-                      stream: _jobOptions(),
-                      builder: (context, snap) {
-                        final jobs = snap.data ?? const <_Job>[];
-                        final value = jobs.any((j) => j.id == _selectedJobId) ? _selectedJobId : null;
+                    FutureBuilder<List<_Job>>(
+                      future: loadCachedJobs(),
+                      builder: (context, cacheSnap) {
+                        final cachedJobs = cacheSnap.data ?? const <_Job>[];
 
-                        return DropdownButtonFormField<String>(
-                          isExpanded: true,
-                          value: value,
-                          items: jobs.map((j) {
-                            final parts = j.label.split('•');
-                            final jobId = parts.isNotEmpty ? parts[0].trim() : j.id;
-                            final customer = parts.length > 1 ? parts[1].trim() : "";
-                            final status = parts.length > 2 ? parts[2].trim() : "";
+                        return StreamBuilder<List<_Job>>(
+                          stream: _jobOptions(),
+                          builder: (context, snap) {
+                            // Prefer Firestore if available, else fall back to cache
+                            final jobs = snap.data?.isNotEmpty == true ? snap.data! : cachedJobs;
+                            final value = jobs.any((j) => j.id == _selectedJobId) ? _selectedJobId : null;
 
-                            Color statusColor;
-                            switch (status.toLowerCase()) {
-                              case "completed":
-                                statusColor = Colors.green.shade100;
-                                break;
-                              case "in progress":
-                                statusColor = Colors.orange.shade100;
-                                break;
-                              default:
-                                statusColor = Colors.blue.shade100;
-                            }
+                            return DropdownButtonFormField<String>(
+                              isExpanded: true,
+                              value: value,
+                              items: jobs.map((j) {
+                                final parts = j.label.split('•');
+                                final jobId = parts.isNotEmpty ? parts[0].trim() : j.id;
+                                final customer = parts.length > 1 ? parts[1].trim() : "";
+                                final status = parts.length > 2 ? parts[2].trim() : "";
 
-                            return DropdownMenuItem(
-                              value: j.id,
-                              child: Row(
-                                children: [
-                                  Expanded(
-                                    child: Row(
-                                      children: [
-                                        Text(
-                                          jobId,
-                                          style: const TextStyle(fontWeight: FontWeight.bold),
-                                        ),
-                                        if (customer.isNotEmpty) ...[
-                                          const SizedBox(width: 6),
-                                          Flexible(
-                                            child: Text(
-                                              customer,
-                                              style: TextStyle(fontSize: 12, color: Colors.grey[700]),
-                                              overflow: TextOverflow.ellipsis,
+                                Color statusColor;
+                                switch (status.toLowerCase()) {
+                                  case "completed":
+                                    statusColor = Colors.green.shade100;
+                                    break;
+                                  case "in progress":
+                                    statusColor = Colors.orange.shade100;
+                                    break;
+                                  default:
+                                    statusColor = Colors.blue.shade100;
+                                }
+
+                                return DropdownMenuItem(
+                                  value: j.id,
+                                  child: Row(
+                                    children: [
+                                      Expanded(
+                                        child: Row(
+                                          children: [
+                                            Text(
+                                              jobId,
+                                              style: const TextStyle(fontWeight: FontWeight.bold),
                                             ),
-                                          ),
-                                        ],
-                                      ],
-                                    ),
+                                            if (customer.isNotEmpty) ...[
+                                              const SizedBox(width: 6),
+                                              Flexible(
+                                                child: Text(
+                                                  customer,
+                                                  style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+                                                  overflow: TextOverflow.ellipsis,
+                                                ),
+                                              ),
+                                            ],
+                                          ],
+                                        ),
+                                      ),
+                                      if (status.isNotEmpty)
+                                        Chip(
+                                          label: Text(status, style: const TextStyle(fontSize: 11)),
+                                          backgroundColor: statusColor,
+                                          visualDensity: const VisualDensity(horizontal: -4, vertical: -4),
+                                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                          padding: EdgeInsets.zero,
+                                          labelPadding: const EdgeInsets.symmetric(horizontal: 6, vertical: 0),
+                                        ),
+                                    ],
                                   ),
-                                  if (status.isNotEmpty)
-                                    Chip(
-                                      label: Text(status, style: const TextStyle(fontSize: 11)),
-                                      backgroundColor: statusColor,
-                                      visualDensity: const VisualDensity(horizontal: -4, vertical: -4),
-                                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                      padding: EdgeInsets.zero,
-                                      labelPadding: const EdgeInsets.symmetric(horizontal: 6, vertical: 0),
-                                    ),
-                                ],
+                                );
+                              }).toList(),
+                              onChanged: (v) => setState(() => _selectedJobId = v),
+                              decoration: const InputDecoration(
+                                labelText: 'Job',
+                                border: OutlineInputBorder(),
                               ),
+                              menuMaxHeight: 300,
+                              hint: const Text('Select a job'),
+                              autovalidateMode: AutovalidateMode.onUserInteraction,
+                              validator: (v) {
+                                if (v == null || v.trim().isEmpty) return 'Job is required';
+                                return null;
+                              },
                             );
-                          }).toList(),
-                          onChanged: (v) => setState(() => _selectedJobId = v),
-                          decoration: const InputDecoration(
-                            labelText: 'Job',
-                            border: OutlineInputBorder(),
-                          ),
-                          menuMaxHeight: 300,
-                          hint: snap.connectionState == ConnectionState.waiting
-                              ? const Text('Loading jobs…')
-                              : const Text('Select a job'),
-                          autovalidateMode: AutovalidateMode.onUserInteraction,
-                          validator: (v) {
-                            if (v == null || v.trim().isEmpty) return 'Job is required';
-                            return null;
                           },
                         );
                       },

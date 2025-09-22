@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:hive/hive.dart';
 
 class ManageJobsPage extends StatefulWidget {
   const ManageJobsPage({super.key});
@@ -388,7 +389,10 @@ class _ManageJobsPageState extends State<ManageJobsPage> {
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("Cancel"),
+            ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.blue,
@@ -396,6 +400,7 @@ class _ManageJobsPageState extends State<ManageJobsPage> {
               ),
               onPressed: () async {
                 final enteredId = jobIdController.text.trim();
+
                 // Validation
                 bool hasError = false;
                 fieldErrors.updateAll((key, value) => null);
@@ -424,8 +429,9 @@ class _ManageJobsPageState extends State<ManageJobsPage> {
                 if (hasError) return;
 
                 if (selectedCustomer == null || selectedCustomer!.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                      content: Text("Please select a customer")));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text("Please select a customer")),
+                  );
                   return;
                 }
                 if (selectedVehicle == null || selectedVehicle!.isEmpty) {
@@ -435,9 +441,9 @@ class _ManageJobsPageState extends State<ManageJobsPage> {
                   return;
                 }
 
+                // Build job object
                 Map<String, dynamic> partsMap = {
-                  for (var part in parts)
-                    part["name"] ?? "Unnamed": part
+                  for (var part in parts) part["name"] ?? "Unnamed": part
                 };
                 final newJob = {
                   "id": enteredId,
@@ -457,29 +463,51 @@ class _ManageJobsPageState extends State<ManageJobsPage> {
                   "totalTimeSpentDisplay": null,
                 };
 
+                final box = await Hive.openBox('jobsCache');
+
                 if (job == null) {
-                  // Use entered ID as the Firestore document ID
-                  await jobsRef.doc(enteredId).set(newJob);
+                  // ADD
+                  try {
+                    await jobsRef.doc(enteredId).set(newJob);
+                  } catch (_) {
+                    await box.put(enteredId, {
+                      "action": "add",
+                      "data": newJob,
+                    });
+                  }
                   if (mounted) Navigator.pop(context);
                   Future.delayed(const Duration(milliseconds: 150), () {
                     if (mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("Job assigned successfully!")),
+                        const SnackBar(
+                          content: Text("Job assigned successfully! "),
+                        ),
                       );
                     }
                   });
                 } else {
-                  await jobsRef.doc(docId!).update(newJob);
+                  // UPDATE
+                  try {
+                    await jobsRef.doc(docId!).update(newJob);
+                  } catch (_) {
+                    await box.put(docId, {
+                      "action": "update",
+                      "data": newJob,
+                    });
+                  }
                   if (mounted) Navigator.pop(context);
                   Future.delayed(const Duration(milliseconds: 150), () {
                     if (mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("Job updated successfully!")),
+                        const SnackBar(
+                          content: Text("Job updated successfully! (cached if offline)"),
+                        ),
                       );
                     }
                   });
                 }
-              },              child: const Text("Save"),
+              },
+              child: const Text("Save"),
             ),
           ],
         ),

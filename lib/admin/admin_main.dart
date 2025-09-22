@@ -48,7 +48,7 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
             ListTile(
               leading: const Icon(Icons.logout),
               title: const Text("Log Out"),
-              onTap: () async {;
+              onTap: () async {
                 await FirebaseAuth.instance.signOut();
               },
             ),

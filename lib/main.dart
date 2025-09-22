@@ -8,6 +8,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:mech_track/profile.dart';
 
+import 'digital_signoff.dart';
 import 'firebase_options.dart';
 import 'login_page.dart';
 import 'settings_page.dart';
@@ -19,6 +20,8 @@ import 'splash_screen.dart';
 import 'staff_main.dart';
 import 'admin/admin_main.dart';
 
+import 'package:hive_flutter/hive_flutter.dart';
+
 Future<void> main() async {
   final widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
   FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
@@ -26,7 +29,86 @@ Future<void> main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+
+  FirebaseFirestore.instance.settings = const Settings(
+    persistenceEnabled: true,
+  );
+
+  await Hive.initFlutter();
+  await Hive.openBox('jobsCache');  // for job list
+  await Hive.openBox('notesCache'); // for notes
+
+  await Hive.openBox('signoffs');
+  await DigitalSignoffScreen.syncPendingSignoffs();
+
+  await Hive.openBox('profileCache');
+  await ProfilePage.syncPendingProfile();
+
+  await Hive.openBox('staffCache');
+  await Hive.openBox('customersCache');
+  await syncPendingAdmin();
+
   runApp(const MyApp());
+}
+
+Future<void> syncPendingAdmin() async {
+  // Staff
+  final staffBox = await Hive.openBox('staffCache');
+  for (final k in staffBox.keys) {
+    final raw = staffBox.get(k);
+    if (raw is! Map) continue; // skip invalid
+    final item = Map<String, dynamic>.from(raw);
+    try {
+      if (item["action"] == "update" || item["action"] == "add") {
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(k)
+            .set(item["data"], SetOptions(merge: true));
+      } else if (item["action"] == "delete") {
+        await FirebaseFirestore.instance.collection('users').doc(k).delete();
+      }
+      await staffBox.delete(k);
+    } catch (_) {}
+  }
+
+  // Customers
+  final customersBox = await Hive.openBox('customersCache');
+  for (final k in customersBox.keys) {
+    final raw = customersBox.get(k);
+    if (raw is! Map) continue;
+    final item = Map<String, dynamic>.from(raw);
+    try {
+      if (item["action"] == "add") {
+        await FirebaseFirestore.instance.collection('Customers').add(item["data"]);
+      } else if (item["action"] == "update") {
+        await FirebaseFirestore.instance.collection('Customers').doc(k).update(item["data"]);
+      } else if (item["action"] == "delete") {
+        await FirebaseFirestore.instance.collection('Customers').doc(k).delete();
+      }
+      await customersBox.delete(k);
+    } catch (_) {}
+  }
+
+  // Jobs
+  final jobsBox = await Hive.openBox('jobsCache');
+  for (final k in jobsBox.keys) {
+    final raw = jobsBox.get(k);
+    if (raw is! Map) continue;
+    final item = Map<String, dynamic>.from(raw);
+    try {
+      if (item["action"] == "add") {
+        await FirebaseFirestore.instance
+            .collection('jobs')
+            .doc(item["data"]["id"])
+            .set(item["data"]);
+      } else if (item["action"] == "update") {
+        await FirebaseFirestore.instance.collection('jobs').doc(k).update(item["data"]);
+      } else if (item["action"] == "delete") {
+        await FirebaseFirestore.instance.collection('jobs').doc(k).delete();
+      }
+      await jobsBox.delete(k);
+    } catch (_) {}
+  }
 }
 
 class MyApp extends StatelessWidget {

@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:hive/hive.dart';
 import 'package:image/image.dart' as img;
 
 import 'note_model.dart';
@@ -22,16 +23,47 @@ class NotesService {
 
   /// All notes for current user
   Stream<List<NoteModel>> streamNotes({bool newestFirst = true}) {
-    FirebaseFirestore.instance
-        .collection('notes')
-        .where('userId', isEqualTo: FirebaseAuth.instance.currentUser!.uid)
-        .snapshots();
-
     return _notes
         .where('userId', isEqualTo: _uid)
         .orderBy('createdAt', descending: newestFirst)
         .snapshots()
-        .map((q) => q.docs.map(NoteModel.fromDoc).toList());
+        .map((q) {
+      final notes = q.docs.map(NoteModel.fromDoc).toList();
+
+      final box = Hive.box('notesCache');
+      box.put('notes', notes.map((n) => n.toMap()).toList());
+
+      return notes;
+    });
+  }
+
+  Future<List<NoteModel>> loadCachedNotes() async {
+    final box = Hive.box('notesCache');
+    final cached = box.get('notes', defaultValue: []);
+    return (cached as List)
+        .map((m) => NoteModel.fromMap(Map<String, dynamic>.from(m)))
+        .toList();
+  }
+
+  Future<void> cacheNote(NoteModel m) async {
+    final box = Hive.box('notesCache');
+    final cached = box.get('notes', defaultValue: []);
+    final list = List<Map<String, dynamic>>.from(cached);
+
+    // replace if already exists
+    list.removeWhere((n) => n['id'] == m.id);
+    list.add(m.toMap());
+
+    await box.put('notes', list);
+  }
+
+  Future<void> cacheDelete(List<String> ids) async {
+    final box = Hive.box('notesCache');
+    final cached = box.get('notes', defaultValue: []);
+    final list = List<Map<String, dynamic>>.from(cached);
+
+    list.removeWhere((n) => ids.contains(n['id']));
+    await box.put('notes', list);
   }
 
   // Filtered notes (jobId / date range / hasImages), only for current user
@@ -76,30 +108,38 @@ class NotesService {
     return NoteModel.fromDoc(doc);
   }
 
+  /// Upsert: works offline (cached immediately, Firestore syncs later)
   Future<void> upsert(NoteModel m) async {
     final ref = _notes.doc(m.id.isEmpty ? _notes.doc().id : m.id);
-    final snap = await ref.get();
 
-    final data = m.toMap()
-      ..['id'] = ref.id;
-
-    final hasImages =
+    final data = m.toMap()..['id'] = ref.id;
+    data['userId'] = _uid;
+    data['createdAt'] = FieldValue.serverTimestamp();
+    data['hasImages'] =
         ((data['images'] as List?)?.isNotEmpty ?? false) ||
             ((data['imagesB64'] as List?)?.isNotEmpty ?? false);
-    data['hasImages'] = hasImages;
 
-    if (!snap.exists) {
-      data['userId'] = _uid;
-      data['createdAt'] = FieldValue.serverTimestamp();
-      await ref.set(data);
-    } else {
-      data.remove('userId');
-      data.remove('createdAt');
+    // save locally first
+    await cacheNote(m);
+
+    try {
       await ref.set(data, SetOptions(merge: true));
+    } catch (e) {
+      // offline: Firestore queues and retries later
+      print("Firestore offline, note cached only: $e");
     }
   }
 
-  Future<void> delete(String id) async => _notes.doc(id).delete();
+  // Future<void> delete(String id) async => _notes.doc(id).delete();
+  Future<void> delete(String id) async {
+    // remove locally
+    await cacheDelete([id]);
+    try {
+      await _notes.doc(id).delete();
+    } catch (e) {
+      print("Firestore offline, delete cached only: $e");
+    }
+  }
 
   /// Compress to ~900px wide JPEG, return data URI string.
   Future<String> fileToDataUri(File file,

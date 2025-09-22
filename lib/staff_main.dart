@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'job_model.dart';
 import 'job_detail.dart';
 import 'service_history.dart';
@@ -89,16 +90,39 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
+  @override
+  void initState() {
+    super.initState();
+    _loadFilterPref();
+  }
+
+  void _loadFilterPref() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _selectedStatus = prefs.getString('jobFilter'); // null if not set
+    });
+  }
+
+  Future<void> _saveFilterPref() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (_selectedStatus == null) {
+      await prefs.remove('jobFilter');
+    } else {
+      await prefs.setString('jobFilter', _selectedStatus!);
+    }
+  }
+
   String? _selectedStatus; // null = show all
 
   Widget _statusCard(String title, String count, IconData icon) {
     final isSelected = _selectedStatus == title;
     return GestureDetector(
-      onTap: () {
+      onTap: () async {
         setState(() {
           // toggle filter if same card tapped
           _selectedStatus = (_selectedStatus == title) ? null : title;
         });
+        await _saveFilterPref();
       },
       child: Card(
         elevation: isSelected ? 4 : 2,

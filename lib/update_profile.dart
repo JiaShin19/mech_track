@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:hive/hive.dart';
 
 class UpdateProfilePage extends StatefulWidget {
   final String fieldName;
@@ -66,7 +67,7 @@ class _UpdateProfilePageState extends State<UpdateProfilePage> {
 
     // Light validations
     if (field == 'phone') {
-      final phoneRegex = RegExp(r'^\d{2,4}-\d{3,4}-\d{3,4}$'); // allows 019-789-9090
+      final phoneRegex = RegExp(r'^\d{2,4}-\d{3,4}-\d{3,4}$');
       if (!phoneRegex.hasMatch(newValue)) {
         setState(() => _errorText = "Use format like 019-789-9090");
         return;
@@ -82,19 +83,37 @@ class _UpdateProfilePageState extends State<UpdateProfilePage> {
     }
 
     setState(() => _isSaving = true);
+
     try {
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .set({
+      final box = await Hive.openBox('profileCache');
+      final cached = (box.get(user.uid) as Map?) ?? {};
+      final updated = {
+        ...cached,
         field: newValue,
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-      if (mounted) Navigator.pop(context);
+        'updatedAt': DateTime.now().toIso8601String(),
+      };
+      await box.put(user.uid, updated);
+
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("${widget.fieldName} updated locally")),
+        );
+      }
+      try {
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .set({
+          field: newValue,
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      } catch (_) {
+      }
     } catch (e) {
       setState(() {
         _isSaving = false;
-        _errorText = "Failed to update: $e";
+        _errorText = "Failed to update locally: $e";
       });
     }
   }

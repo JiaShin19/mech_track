@@ -33,6 +33,20 @@ class NoteModel {
     );
   }
 
+  factory NoteModel.fromMap(Map<String, dynamic> d) {
+    return NoteModel(
+      id: d['id'] as String,
+      userId: d['userId'] as String,
+      jobId: (d['jobId'] as String?) ?? '',
+      title: (d['title'] as String?) ?? '',
+      text: (d['text'] as String?) ?? '',
+      imagesB64: (d['imagesB64'] as List?)?.cast<String>() ?? const [],
+      createdAt: d['createdAt'] != null
+          ? DateTime.tryParse(d['createdAt'])
+          : null,
+    );
+  }
+
   Map<String, dynamic> toMap() => {
     'id': id,
     'userId': userId,
@@ -40,6 +54,7 @@ class NoteModel {
     'title': title,
     'text': text,
     'imagesB64': imagesB64,
-    if (createdAt != null) 'createdAt': Timestamp.fromDate(createdAt!),
+    // if (createdAt != null) 'createdAt': Timestamp.fromDate(createdAt!),
+    if (createdAt != null) 'createdAt': createdAt!.toIso8601String(),
   };
 }

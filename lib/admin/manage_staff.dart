@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:hive/hive.dart';
 import '../services/secure_storage_service.dart';
 
 class ManageStaffPage extends StatefulWidget {
@@ -43,6 +44,20 @@ class _ManageStaffPageState extends State<ManageStaffPage> {
     }
   }
 
+  /// Save pending staff action into Hive (for offline sync later)
+  Future<void> _cacheStaff({
+    required String action,
+    String? docId,
+    required Map<String, dynamic> data,
+  }) async {
+    final box = await Hive.openBox('staffCache');
+    final key = docId ?? DateTime.now().millisecondsSinceEpoch.toString();
+    await box.put(key, {
+      "action": action,
+      "data": data,
+    });
+  }
+
   void showStaffForm({Map<String, dynamic>? staff, String? docId}) {
     final nameController = TextEditingController(text: staff?["name"] ?? "");
     final emailController = TextEditingController(text: staff?["email"] ?? "");
@@ -65,7 +80,7 @@ class _ManageStaffPageState extends State<ManageStaffPage> {
 
     showDialog(
       context: context,
-      builder: (context) => StatefulBuilder(
+      builder: (dialogContext) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
           title: Text(staff == null ? "Add Staff" : "Edit Staff"),
           content: SingleChildScrollView(
@@ -134,7 +149,7 @@ class _ManageStaffPageState extends State<ManageStaffPage> {
           ),
           actions: [
             TextButton(
-                onPressed: () => Navigator.pop(context),
+                onPressed: () => Navigator.pop(dialogContext),
                 child: const Text("Cancel")),
             ElevatedButton(
               onPressed: () async {
@@ -172,6 +187,26 @@ class _ManageStaffPageState extends State<ManageStaffPage> {
 
                 if (staff == null) {
                   // Add staff
+                  final newStaff = {
+                    "name": name,
+                    "email": email,
+                    "phone": phone,
+                    "address": address,
+                    "role": "staff",
+                    "image": image,
+                    "password": password, // store temporarily for sync
+                  };
+
+                  final box = await Hive.openBox('staffCache');
+                  final cacheKey =
+                  DateTime.now().millisecondsSinceEpoch.toString();
+                  await box.put(cacheKey, {
+                    "action": "add",
+                    "data": newStaff,
+                  });
+
+                  Navigator.pop(dialogContext); // close instantly
+
                   try {
                     UserCredential userCred = await FirebaseAuth.instance
                         .createUserWithEmailAndPassword(
@@ -180,10 +215,9 @@ class _ManageStaffPageState extends State<ManageStaffPage> {
                     );
                     String uid = userCred.user!.uid;
 
-                    // Step 2: sign out staff
                     await FirebaseAuth.instance.signOut();
 
-                    // Step 3: re-login as admin
+                    // re-login admin
                     if (adminEmail != null && adminPassword != null) {
                       await FirebaseAuth.instance.signInWithEmailAndPassword(
                         email: adminEmail!,
@@ -191,48 +225,63 @@ class _ManageStaffPageState extends State<ManageStaffPage> {
                       );
                     }
 
-                    // Step 4: save staff info in Firestore
-                    final newStaff = {
+                    await staffRef.doc(uid).set({
                       "id": uid,
-                      "name": name,
-                      "email": email,
-                      "phone": phone,
-                      "address": address,
-                      "role": "staff",
-                      "image": image,
-                    };
-                    await staffRef.doc(uid).set(newStaff);
-
-                    if (mounted) Navigator.pop(context);
-
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text("Staff added successfully!")),
-                    );
-                  } catch (e) {
-                    setDialogState(() {
-                      fieldErrors['form'] = "Error: ${e.toString()}";
+                      ...newStaff..remove("password"),
                     });
+
+                    await box.delete(cacheKey);
+
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text("Staff added successfully!")),
+                      );
+                    }
+                  } catch (_) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                            content: Text("Staff saved offline, will sync later.")),
+                      );
+                    }
                   }
                 } else {
                   // Edit staff
+                  final updatedStaff = {
+                    "name": name,
+                    "email": email,
+                    "phone": phone,
+                    "address": address,
+                    "role": "staff",
+                    "image": image,
+                  };
+
+                  final box = await Hive.openBox('staffCache');
+                  final cacheKey = docId ?? DateTime.now().millisecondsSinceEpoch.toString();
+                  await box.put(cacheKey, {
+                    "action": "update",
+                    "data": updatedStaff,
+                  });
+
+                  Navigator.pop(dialogContext); // close instantly
+
                   try {
-                    final updatedStaff = {
-                      "name": name,
-                      "email": email,
-                      "phone": phone,
-                      "address": address,
-                      "role": "staff",
-                      "image": image,
-                    };
                     await staffRef.doc(docId!).update(updatedStaff);
-                    if (mounted) Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text("Staff updated successfully!")),
-                    );
-                  } catch (e) {
-                    setDialogState(() {
-                      fieldErrors['form'] = "Error: ${e.toString()}";
-                    });
+
+                    await box.delete(cacheKey);
+
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text("Staff updated successfully!")),
+                      );
+                    }
+                  } catch (_) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                            content: Text("Staff updated offline, will sync later.")),
+                      );
+                    }
                   }
                 }
               },
@@ -323,7 +372,21 @@ class _ManageStaffPageState extends State<ManageStaffPage> {
                         onPressed: () async {
                           final confirm = await confirmDeleteStaff();
                           if (confirm == true) {
-                            await staffRef.doc(docId).delete();
+                            try {
+                              await staffRef.doc(docId).delete();
+                            } catch (_) {
+                              await _cacheStaff(
+                                action: "delete",
+                                docId: docId,
+                                data: {},
+                              );
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                      content: Text("Staff deleted offline, will sync later.")),
+                                );
+                              }
+                            }
                             if (mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(content: Text('Staff deleted.')),

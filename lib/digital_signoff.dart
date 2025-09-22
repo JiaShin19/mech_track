@@ -1,9 +1,11 @@
+// digital_signoff.dart
 import 'dart:typed_data';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:signature/signature.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:hive/hive.dart';
 
 class DigitalSignoffScreen extends StatefulWidget {
   final String jobId;
@@ -17,6 +19,29 @@ class DigitalSignoffScreen extends StatefulWidget {
 
   @override
   State<DigitalSignoffScreen> createState() => _DigitalSignoffScreenState();
+
+  static Future<void> syncPendingSignoffs() async {
+    final box = await Hive.openBox('signoffs');
+    final keys = box.keys.toList();
+
+    for (final k in keys) {
+      final data = Map<String, dynamic>.from(box.get(k));
+      try {
+        await FirebaseFirestore.instance
+            .collection("jobs")
+            .doc(k.toString())
+            .update({
+          "signatureB64": data["signatureB64"],
+          "signedOffBy": data["signedOffBy"],
+          "signedOffAt": FieldValue.serverTimestamp(),
+          "signedOffUid": data["signedOffUid"],
+        });
+        await box.delete(k);
+      } catch (e) {
+        print("Sync failed for job $k: $e");
+      }
+    }
+  }
 }
 
 class _DigitalSignoffScreenState extends State<DigitalSignoffScreen> {
@@ -25,6 +50,7 @@ class _DigitalSignoffScreenState extends State<DigitalSignoffScreen> {
     penColor: Colors.indigo,
     exportBackgroundColor: Colors.white,
   );
+
   bool _saving = false;
   String? _previewB64;
 
@@ -36,12 +62,29 @@ class _DigitalSignoffScreenState extends State<DigitalSignoffScreen> {
       final Uint8List? bytes = await _controller.toPngBytes();
       if (bytes == null) throw "Signature is empty";
 
-      // Convert to base64 data URI (like NoteEditorPage)
+      // Encode to Base64
       final base64Str = base64Encode(bytes);
       final dataUri = "data:image/png;base64,$base64Str";
 
-      // Save into Firestore under jobs/{jobId}
-      await FirebaseFirestore.instance
+      final payload = {
+        "signatureB64": dataUri,
+        "signedOffBy": widget.mechanicId,
+        "signedOffAt": DateTime.now().toIso8601String(),
+        "signedOffUid": FirebaseAuth.instance.currentUser?.uid,
+      };
+
+      final box = await Hive.openBox('signoffs');
+      await box.put(widget.jobId, payload);
+
+      setState(() => _previewB64 = dataUri);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Signature saved!")),
+        );
+      }
+
+      FirebaseFirestore.instance
           .collection("jobs")
           .doc(widget.jobId)
           .update({
@@ -49,19 +92,16 @@ class _DigitalSignoffScreenState extends State<DigitalSignoffScreen> {
         "signedOffBy": widget.mechanicId,
         "signedOffAt": FieldValue.serverTimestamp(),
         "signedOffUid": FirebaseAuth.instance.currentUser?.uid,
+      }).catchError((_) {
       });
-
-      setState(() => _previewB64 = dataUri);
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Signature saved to Firestore!")),
-      );
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error: $e")),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Error: $e")),
+        );
+      }
     } finally {
-      setState(() => _saving = false);
+      if (mounted) setState(() => _saving = false);
     }
   }
 
