@@ -10,7 +10,6 @@ import 'service_history.dart';
 import 'summary.dart';
 import 'notes_list_page.dart';
 import 'data_service.dart';
-import 'settings_page.dart';
 
 class StaffMainScreen extends StatefulWidget {
   const StaffMainScreen({super.key});
@@ -82,28 +81,45 @@ class _StaffMainScreenState extends State<StaffMainScreen>
   }
 }
 
-class DashboardScreen extends StatelessWidget {
+class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
 
-  static Widget _statusCard(String title, String count, IconData icon) {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-        child: Column(
-          children: [
-            Icon(icon, color: Color(0xFF2B384C)),
-            const SizedBox(height: 5),
-            Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-            Text(count),
-          ],
+  @override
+  State<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends State<DashboardScreen> {
+  String? _selectedStatus; // null = show all
+
+  Widget _statusCard(String title, String count, IconData icon) {
+    final isSelected = _selectedStatus == title;
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          // toggle filter if same card tapped
+          _selectedStatus = (_selectedStatus == title) ? null : title;
+        });
+      },
+      child: Card(
+        elevation: isSelected ? 4 : 2,
+        color: isSelected ? Colors.blue.shade50 : Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+          child: Column(
+            children: [
+              Icon(icon, color: const Color(0xFF2B384C)),
+              const SizedBox(height: 5),
+              Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+              Text(count),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  static Widget _jobCard(BuildContext context, Job job) {
+  Widget _jobCard(BuildContext context, Job job) {
     return Card(
       elevation: 3,
       margin: const EdgeInsets.symmetric(vertical: 8),
@@ -141,7 +157,7 @@ class DashboardScreen extends StatelessWidget {
         backgroundColor: const Color(0xFF2B384C),
         foregroundColor: const Color(0xFFF0F4F3),
       ),
-      drawer: _buildDrawer(user), // <-- use helper function here
+      drawer: _buildDrawer(user),
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
             .collection("jobs")
@@ -156,17 +172,17 @@ class DashboardScreen extends StatelessWidget {
           }
 
           final jobs = snapshot.data!.docs
-              .map((doc) => Job.fromMap(
-            doc.data() as Map<String, dynamic>,
-            doc.id,
-          ))
+              .map((doc) => Job.fromMap(doc.data() as Map<String, dynamic>, doc.id))
               .toList();
 
           final assignedCount = jobs.where((j) => j.status == "Assigned").length;
-          final inProgressCount =
-              jobs.where((j) => j.status == "In Progress").length;
-          final completedCount =
-              jobs.where((j) => j.status == "Completed").length;
+          final inProgressCount = jobs.where((j) => j.status == "In Progress").length;
+          final completedCount = jobs.where((j) => j.status == "Completed").length;
+
+          // apply filter
+          final filteredJobs = _selectedStatus == null
+              ? jobs
+              : jobs.where((j) => j.status == _selectedStatus).toList();
 
           return Padding(
             padding: const EdgeInsets.all(12.0),
@@ -175,20 +191,20 @@ class DashboardScreen extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
-                    _statusCard("Assigned", assignedCount.toString(),
-                        Icons.assignment),
-                    _statusCard("In Progress", inProgressCount.toString(),
-                        Icons.sync),
-                    _statusCard("Completed", completedCount.toString(),
-                        Icons.check_circle),
+                    _statusCard("Assigned", assignedCount.toString(), Icons.assignment),
+                    _statusCard("In Progress", inProgressCount.toString(), Icons.sync),
+                    _statusCard("Completed", completedCount.toString(), Icons.check_circle),
                   ],
                 ),
                 const SizedBox(height: 20),
-                const Text("Task Tracker:",
-                    style:
-                    TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                const Text(
+                  "Task Tracker:",
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
                 const SizedBox(height: 10),
-                ...jobs.map((job) => _jobCard(context, job)).toList(),
+                if (filteredJobs.isEmpty)
+                  const Center(child: Text("No jobs found.")),
+                ...filteredJobs.map((job) => _jobCard(context, job)).toList(),
               ],
             ),
           );
@@ -433,44 +449,4 @@ Future<bool> _confirmSignOut(BuildContext context) async {
   }
 
   return ok;
-}
-
-// Status Summary Cards
-Widget _statusCard(String title, String count, IconData icon) {
-  return Card(
-    elevation: 2,
-    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-    child: Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-      child: Column(
-        children: [
-          Icon(icon, color: Colors.indigo),
-          const SizedBox(height: 5),
-          Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-          Text(count),
-        ],
-      ),
-    ),
-  );
-}
-
-// Job Cards
-Widget _jobCard(String jobId, String customer, String status) {
-  return Card(
-    elevation: 3,
-    margin: const EdgeInsets.symmetric(vertical: 8),
-    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-    child: ListTile(
-      leading: const Icon(Icons.build, color: Colors.indigo),
-      title: Text(jobId, style: const TextStyle(fontWeight: FontWeight.bold)),
-      subtitle: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(customer),
-          Text(status),
-        ],
-      ),
-      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-    ),
-  );
 }

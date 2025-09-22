@@ -129,34 +129,45 @@ class DataService {
 
   /// Get monthly jobs
   static Future<List<Job>> getMonthlyJobs() async {
-    try {
-      final allJobs = await getAllJobs();
-      final now = DateTime.now();
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return [];
 
-      return allJobs.where((job) {
-        final jobDate = DateTime.tryParse(job.createdDate);
-        return jobDate != null &&
-            jobDate.year == now.year &&
-            jobDate.month == now.month;
-      }).toList()
-        ..sort((a, b) => DateTime.parse(b.createdDate)
-            .compareTo(DateTime.parse(a.createdDate)));
-    } catch (e) {
-      print('Error getting monthly jobs: $e');
-      return [];
-    }
+    final now = DateTime.now();
+    final firstDay = DateTime(now.year, now.month, 1);
+    final nextMonth = DateTime(now.year, now.month + 1, 1);
+
+    final snapshot = await FirebaseFirestore.instance
+        .collection("jobs")
+        .where("assignedToEmail", isEqualTo: user.email)
+        .where("createdDate", isGreaterThanOrEqualTo: firstDay.toIso8601String())
+        .where("createdDate", isLessThan: nextMonth.toIso8601String())
+        .get();
+
+    return snapshot.docs
+        .map((doc) => Job.fromMap(doc.data(), doc.id))
+        .toList();
   }
 
   /// Get yearly jobs
   static Future<List<Job>> getYearlyJobs() async {
     try {
-      final allJobs = await getAllJobs();
-      final now = DateTime.now();
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return [];
 
-      return allJobs.where((job) {
-        final jobDate = DateTime.tryParse(job.createdDate);
-        return jobDate != null && jobDate.year == now.year;
-      }).toList()
+      final now = DateTime.now();
+      final startOfYear = DateTime(now.year, 1, 1);
+      final startOfNextYear = DateTime(now.year + 1, 1, 1);
+
+      final snapshot = await FirebaseFirestore.instance
+          .collection("jobs")
+          .where("assignedToEmail", isEqualTo: user.email)
+          .where("createdDate", isGreaterThanOrEqualTo: startOfYear.toIso8601String())
+          .where("createdDate", isLessThan: startOfNextYear.toIso8601String())
+          .get();
+
+      return snapshot.docs
+          .map((doc) => Job.fromMap(doc.data(), doc.id))
+          .toList()
         ..sort((a, b) => DateTime.parse(b.createdDate)
             .compareTo(DateTime.parse(a.createdDate)));
     } catch (e) {
@@ -167,24 +178,19 @@ class DataService {
 
   /// Get current mechanic's jobs
   static Future<List<Job>> getCurrentMechanicJobs() async {
-    try {
-      final mechanic = await getCurrentMechanic();
-      if (mechanic == null) {
-        print('No current mechanic found');
-        return [];
-      }
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return [];
 
-      final allJobs = await getAllJobs();
-      return allJobs
-          .where((job) => isCurrentMechanic(job.assignedTo))
-          .toList()
-        ..sort((a, b) => DateTime.parse(b.createdDate)
-            .compareTo(DateTime.parse(a.createdDate)));
-    } catch (e) {
-      print('Error getting current mechanic jobs: $e');
-      return [];
-    }
+    final snapshot = await FirebaseFirestore.instance
+        .collection("jobs")
+        .where("assignedToEmail", isEqualTo: user.email)
+        .get();
+
+    return snapshot.docs
+        .map((doc) => Job.fromMap(doc.data(), doc.id))
+        .toList();
   }
+
 
   /// Get vehicle service history
   static Future<List<Job>> getVehicleServiceHistory(String licensePlate) async {

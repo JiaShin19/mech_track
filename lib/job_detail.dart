@@ -401,11 +401,11 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
                         margin: const EdgeInsets.symmetric(vertical: 8),
                         showStatus: true,
                       ),
-                      if (job.status == "Completed")
+                      if (current.status == "Completed")
                         StreamBuilder<DocumentSnapshot>(
                           stream: FirebaseFirestore.instance
                               .collection("jobs")
-                              .doc(job.id)
+                              .doc(current.id) // use current.id, not job.id
                               .snapshots(),
                           builder: (context, snap) {
                             if (!snap.hasData) return const SizedBox.shrink();
@@ -413,11 +413,10 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
                             final sig = data["signatureB64"] as String?;
 
                             if (sig != null && sig.isNotEmpty) {
+                              // show signed-off card
                               return Card(
                                 margin: const EdgeInsets.symmetric(vertical: 8),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                                 elevation: 3,
                                 child: Padding(
                                   padding: const EdgeInsets.all(16),
@@ -428,13 +427,8 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
                                         children: const [
                                           Icon(Icons.edit_document, color: Colors.indigo),
                                           SizedBox(width: 8),
-                                          Text(
-                                            "Digital Sign-Off",
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 16,
-                                            ),
-                                          ),
+                                          Text("Digital Sign-Off",
+                                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                                         ],
                                       ),
                                       const SizedBox(height: 12),
@@ -459,13 +453,9 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
                                           children: const [
                                             Icon(Icons.verified, color: Colors.green),
                                             SizedBox(width: 6),
-                                            Text(
-                                              "Signed Off",
-                                              style: TextStyle(
-                                                color: Colors.green,
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                            ),
+                                            Text("Signed Off",
+                                                style: TextStyle(
+                                                    color: Colors.green, fontWeight: FontWeight.bold)),
                                           ],
                                         ),
                                       ),
@@ -474,6 +464,7 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
                                 ),
                               );
                             } else {
+                              // show button instantly
                               return Padding(
                                 padding: const EdgeInsets.symmetric(vertical: 8),
                                 child: ElevatedButton.icon(
@@ -488,10 +479,8 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
                                     final ok = await Navigator.push<bool>(
                                       context,
                                       MaterialPageRoute(
-                                        builder: (context) => DigitalSignoffScreen(
-                                          jobId: job.id,
-                                          mechanicId: mechanicId,
-                                        ),
+                                        builder: (context) =>
+                                            DigitalSignoffScreen(jobId: current.id, mechanicId: mechanicId),
                                       ),
                                     );
                                     if (ok == true) setState(() {});

@@ -479,27 +479,6 @@ class _ManageJobsPageState extends State<ManageJobsPage> {
                     }
                   });
                 }
-                if (job == null) {
-                  await jobsRef.add(newJob);
-                  if (mounted) Navigator.pop(context);
-                  Future.delayed(const Duration(milliseconds: 150), () {
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("Job assigned successfully!")),
-                      );
-                    }
-                  });
-                } else {
-                  await jobsRef.doc(docId!).update(newJob);
-                  if (mounted) Navigator.pop(context);
-                  Future.delayed(const Duration(milliseconds: 150), () {
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("Job updated successfully!")),
-                      );
-                    }
-                  });
-                }
               },              child: const Text("Save"),
             ),
           ],
