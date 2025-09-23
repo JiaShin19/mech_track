@@ -195,9 +195,12 @@ class DataService {
   /// Get vehicle service history
   static Future<List<Job>> getVehicleServiceHistory(String licensePlate) async {
     try {
-      final allJobs = await getAllJobs();
-      return allJobs
-          .where((job) => job.vehicle.licensePlate == licensePlate)
+      final snapshot = await _db
+          .collection('jobs')
+          .where("vehicle.licensePlate", isEqualTo: licensePlate)
+          .get();
+      return snapshot.docs
+          .map((doc) => Job.fromMap(doc.data(), doc.id))
           .toList()
         ..sort((a, b) => DateTime.parse(b.createdDate)
             .compareTo(DateTime.parse(a.createdDate)));
