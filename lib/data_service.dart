@@ -211,13 +211,13 @@ class DataService {
   }
 
   /// Convert Firestore data to Job
-  static Job _jobFromFirestore(Map<String, dynamic> data) {
+  static Job _jobFromFirestore(Map<String, dynamic> data, [String? docId]) {
     final customerData = data['customer'] as Map<String, dynamic>? ?? {};
     final vehicleData = data['vehicle'] as Map<String, dynamic>? ?? {};
     final partsData = data['parts'] as Map<String, dynamic>? ?? {};
 
     return Job(
-      id: data['id'] ?? '',
+      id: docId ?? data['id'] ?? '',
       customer: Customer(
         name: customerData['name'] ?? data['customerName'] ?? '',
         phone: customerData['phone'] ?? '',
