@@ -466,45 +466,35 @@ class _ManageJobsPageState extends State<ManageJobsPage> {
                 final box = await Hive.openBox('jobsCache');
 
                 if (job == null) {
-                  // ADD
-                  try {
-                    await jobsRef.doc(enteredId).set(newJob);
-                  } catch (_) {
-                    await box.put(enteredId, {
-                      "action": "add",
-                      "data": newJob,
-                    });
-                  }
-                  if (mounted) Navigator.pop(context);
-                  Future.delayed(const Duration(milliseconds: 150), () {
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text("Job assigned successfully! "),
-                        ),
-                      );
-                    }
-                  });
+                  await box.put(enteredId, {"action": "add", "data": newJob});
                 } else {
-                  // UPDATE
-                  try {
-                    await jobsRef.doc(docId!).update(newJob);
-                  } catch (_) {
-                    await box.put(docId, {
-                      "action": "update",
-                      "data": newJob,
-                    });
+                  await box.put(docId, {"action": "update", "data": newJob});
+                }
+
+                if (mounted) Navigator.pop(context);
+
+                // Show feedback immediately
+                Future.delayed(const Duration(milliseconds: 150), () {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(job == null
+                            ? "Job assigned successfully! (will sync online if possible)."
+                            : "Job updated successfully! (will sync online if possible)"),
+                      ),
+                    );
                   }
-                  if (mounted) Navigator.pop(context);
-                  Future.delayed(const Duration(milliseconds: 150), () {
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text("Job updated successfully! (cached if offline)"),
-                        ),
-                      );
-                    }
-                  });
+                });
+
+                try {
+                  if (job == null) {
+                    await jobsRef.doc(enteredId).set(newJob);
+                    await box.delete(enteredId);
+                  } else {
+                    await jobsRef.doc(docId!).update(newJob);
+                    await box.delete(docId);
+                  }
+                } catch (_) {
                 }
               },
               child: const Text("Save"),

@@ -195,9 +195,12 @@ class DataService {
   /// Get vehicle service history
   static Future<List<Job>> getVehicleServiceHistory(String licensePlate) async {
     try {
-      final allJobs = await getAllJobs();
-      return allJobs
-          .where((job) => job.vehicle.licensePlate == licensePlate)
+      final snapshot = await _db
+          .collection('jobs')
+          .where("vehicle.licensePlate", isEqualTo: licensePlate)
+          .get();
+      return snapshot.docs
+          .map((doc) => Job.fromMap(doc.data(), doc.id))
           .toList()
         ..sort((a, b) => DateTime.parse(b.createdDate)
             .compareTo(DateTime.parse(a.createdDate)));
@@ -208,13 +211,13 @@ class DataService {
   }
 
   /// Convert Firestore data to Job
-  static Job _jobFromFirestore(Map<String, dynamic> data) {
+  static Job _jobFromFirestore(Map<String, dynamic> data, [String? docId]) {
     final customerData = data['customer'] as Map<String, dynamic>? ?? {};
     final vehicleData = data['vehicle'] as Map<String, dynamic>? ?? {};
     final partsData = data['parts'] as Map<String, dynamic>? ?? {};
 
     return Job(
-      id: data['id'] ?? '',
+      id: docId ?? data['id'] ?? '',
       customer: Customer(
         name: customerData['name'] ?? data['customerName'] ?? '',
         phone: customerData['phone'] ?? '',
