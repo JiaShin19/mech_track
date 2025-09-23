@@ -129,38 +129,35 @@ class DataService {
 
   /// Get monthly jobs
   static Future<List<Job>> getMonthlyJobs() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return [];
+    try {
+      final now = DateTime.now();
+      final firstDay = DateTime(now.year, now.month, 1);
+      final nextMonth = DateTime(now.year, now.month + 1, 1);
 
-    final now = DateTime.now();
-    final firstDay = DateTime(now.year, now.month, 1);
-    final nextMonth = DateTime(now.year, now.month + 1, 1);
+      final snapshot = await FirebaseFirestore.instance
+          .collection("jobs")
+          .where("createdDate", isGreaterThanOrEqualTo: firstDay.toIso8601String())
+          .where("createdDate", isLessThan: nextMonth.toIso8601String())
+          .get();
 
-    final snapshot = await FirebaseFirestore.instance
-        .collection("jobs")
-        .where("assignedToEmail", isEqualTo: user.email)
-        .where("createdDate", isGreaterThanOrEqualTo: firstDay.toIso8601String())
-        .where("createdDate", isLessThan: nextMonth.toIso8601String())
-        .get();
-
-    return snapshot.docs
-        .map((doc) => Job.fromMap(doc.data(), doc.id))
-        .toList();
+      return snapshot.docs
+          .map((doc) => Job.fromMap(doc.data(), doc.id))
+          .toList();
+    } catch (e) {
+      print('Error getting monthly jobs: $e');
+      return [];
+    }
   }
 
   /// Get yearly jobs
   static Future<List<Job>> getYearlyJobs() async {
     try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) return [];
-
       final now = DateTime.now();
       final startOfYear = DateTime(now.year, 1, 1);
       final startOfNextYear = DateTime(now.year + 1, 1, 1);
 
       final snapshot = await FirebaseFirestore.instance
           .collection("jobs")
-          .where("assignedToEmail", isEqualTo: user.email)
           .where("createdDate", isGreaterThanOrEqualTo: startOfYear.toIso8601String())
           .where("createdDate", isLessThan: startOfNextYear.toIso8601String())
           .get();
@@ -190,7 +187,6 @@ class DataService {
         .map((doc) => Job.fromMap(doc.data(), doc.id))
         .toList();
   }
-
 
   /// Get vehicle service history
   static Future<List<Job>> getVehicleServiceHistory(String licensePlate) async {
